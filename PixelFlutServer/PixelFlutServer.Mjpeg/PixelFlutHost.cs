@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -14,20 +15,29 @@ namespace PixelFlutServer.Mjpeg
         private readonly TcpListener _listener;
         private readonly ILogger<PixelFlutHost> _logger;
         private readonly IPixelFlutHandler _pixelFlutHandler;
+        private readonly int _frameMs;
+        private readonly int _width;
+        private readonly int _height;
+        private readonly int _bytesPerPixel;
+        private readonly byte[] _pixels;
         private CancellationTokenSource _cts = new();
         private static SemaphoreSlim _frameSemaphore = new SemaphoreSlim(0, 1);
 
-        private const int _width = 1920;
-        private const int _height = 1080;
-        private const int _bytesPerPixel = 3;
-
-        private byte[] _pixels = new byte[_width * _height * _bytesPerPixel];
-
-        public PixelFlutHost(ILogger<PixelFlutHost> logger, IPixelFlutHandler pixelFlutHandler)
+        public PixelFlutHost(ILogger<PixelFlutHost> logger, IPixelFlutHandler pixelFlutHandler, IOptions<PixelFlutServerConfig> options)
         {
-            _listener = TcpListener.Create(1234);
+            var config = options.Value;
+
+            _listener = TcpListener.Create(config.PixelFlutPort);
             _logger = logger;
             _pixelFlutHandler = pixelFlutHandler;
+
+            _frameMs = (int)(1000.0 / config.MaxFps);
+
+            _width = config.Width;
+            _height = config.Height;
+            _bytesPerPixel = config.BytesPerPixel;
+
+            _pixels = new byte[_width * _height * _bytesPerPixel];
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -56,7 +66,7 @@ namespace PixelFlutServer.Mjpeg
                 await _frameSemaphore.WaitAsync();
                 FrameHub.SetFrame(_pixels);
 
-                await Task.Delay(Math.Max(0, 33 - (int)sw.ElapsedMilliseconds));
+                await Task.Delay(Math.Max(0, _frameMs - (int)sw.ElapsedMilliseconds));
             }
         }
 

@@ -3,6 +3,10 @@ services:
   service:
     image: pixelflut-server-dotnet
     build: .
+    environment:
+      - "MaxFps=10"
+      - "Width=640"
+      - "Height=320"
     ports:
       - 8080:8080
       - 1234:1234

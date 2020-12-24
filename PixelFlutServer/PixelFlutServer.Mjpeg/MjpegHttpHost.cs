@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Concurrent;
 using System.Drawing;
@@ -22,14 +23,20 @@ namespace PixelFlutServer.Mjpeg
         private ConcurrentDictionary<Guid, SemaphoreSlim> _frameWaitSemaphores = new();
         private byte[] _currentJpeg = null;
 
-        private const int _width = 1920;
-        private const int _height = 1080;
-        private const int _bytesPerPixel = 3;
+        private readonly int _width;
+        private readonly int _height;
+        private readonly int _bytesPerPixel;
 
-        public MjpegHttpHost(ILogger<MjpegHttpHost> logger)
+        public MjpegHttpHost(ILogger<MjpegHttpHost> logger, IOptions<PixelFlutServerConfig> options)
         {
-            _listener = TcpListener.Create(8080);
+            var config = options.Value;
+
+            _listener = TcpListener.Create(config.MjpegPort);
             _logger = logger;
+
+            _width = config.Width;
+            _height = config.Height;
+            _bytesPerPixel = config.BytesPerPixel;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
