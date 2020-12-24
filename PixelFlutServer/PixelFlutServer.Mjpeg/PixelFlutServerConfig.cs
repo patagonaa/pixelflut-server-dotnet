@@ -7,6 +7,6 @@
         public double MaxFps { get; set; } = 60;
         public int Width { get; set; } = 1280;
         public int Height { get; set; } = 720;
-        public int BytesPerPixel { get; } = 720;
+        public int BytesPerPixel { get; } = 3;
     }
 }
