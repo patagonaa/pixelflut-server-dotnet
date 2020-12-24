@@ -1,0 +1,9 @@
+version: "3.7"
+services:
+  service:
+    image: pixelflut-server-dotnet
+    build: .
+    ports:
+      - 8080:8080
+      - 1234:1234
+    restart: unless-stopped
