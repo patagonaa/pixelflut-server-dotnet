@@ -1,4 +1,4 @@
-﻿using System.Linq;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,7 +17,9 @@ namespace PixelFlutServer.Mjpeg
 
         public static void SetFrame(byte[] frame)
         {
-            _currentFrame = frame;
+            if (_currentFrame == null)
+                _currentFrame = new byte[frame.Length];
+            Array.Copy(frame, _currentFrame, frame.Length);
             if (_frameSemaphore.CurrentCount == 0)
             {
                 _frameSemaphore.Release();

@@ -24,7 +24,7 @@ namespace PixelFlutServer.Mjpeg
 
         private const int _width = 1920;
         private const int _height = 1080;
-        private const int _bitsPerPixel = 3;
+        private const int _bytesPerPixel = 3;
 
         public MjpegHttpHost(ILogger<MjpegHttpHost> logger)
         {
@@ -56,7 +56,7 @@ namespace PixelFlutServer.Mjpeg
                     var frame = await FrameHub.WaitForFrame(_cts.Token);
 
                     var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-                    Marshal.Copy(frame, 0, data.Scan0, _width * _height * _bitsPerPixel);
+                    Marshal.Copy(frame, 0, data.Scan0, _width * _height * _bytesPerPixel);
                     bitmap.UnlockBits(data);
                     using (var ms = new MemoryStream())
                     {
