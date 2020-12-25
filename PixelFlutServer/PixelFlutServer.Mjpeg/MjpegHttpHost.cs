@@ -99,6 +99,8 @@ namespace PixelFlutServer.Mjpeg
                 var connectionId = Guid.NewGuid();
                 _logger.LogInformation("Connection from {Endpoint}", endPoint);
                 var frameWaitSemaphore = new SemaphoreSlim(0, 1);
+
+                // output frame once at the start so the user can see something even when there's nothing currently flooding
                 if (_currentJpeg != null)
                     frameWaitSemaphore.Release();
 
@@ -127,10 +129,21 @@ namespace PixelFlutServer.Mjpeg
                         sw.WriteLine("Content-Type: multipart/x-mixed-replace;boundary=thisisaboundary");
                         sw.WriteLine();
 
+                        var first = true;
 
                         while (!_cts.IsCancellationRequested)
                         {
-                            await frameWaitSemaphore.WaitAsync();
+                            // this makes sure the first frame is sent twice, workaround for chromium bug
+                            // https://bugs.chromium.org/p/chromium/issues/detail?id=527446
+                            if (first && _currentJpeg != null)
+                            {
+                                first = false;
+                            }
+                            else
+                            {
+                                await frameWaitSemaphore.WaitAsync();
+                            }
+
                             var frame = _currentJpeg;
 
                             await sw.WriteLineAsync("--thisisaboundary");
