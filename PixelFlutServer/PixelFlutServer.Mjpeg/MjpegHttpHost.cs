@@ -159,10 +159,19 @@ namespace PixelFlutServer.Mjpeg
                         }
                     }
                 }
-                catch (IOException iex) when (iex.GetBaseException() is SocketException sex &&
-                    (sex.SocketErrorCode == SocketError.ConnectionAborted || sex.SocketErrorCode == SocketError.ConnectionReset || sex.SocketErrorCode == SocketError.TimedOut))
+                catch (IOException iex) when (iex.GetBaseException() is SocketException sex)
                 {
-                    _logger.LogInformation("HTTP Connection {Endpoint} closed!", endPoint);
+                    if (sex.SocketErrorCode == SocketError.ConnectionAborted ||
+                        sex.SocketErrorCode == SocketError.ConnectionReset ||
+                        sex.SocketErrorCode == SocketError.TimedOut ||
+                        sex.SocketErrorCode == SocketError.Shutdown)
+                    {
+                        _logger.LogInformation("HTTP Connection {Endpoint} closed!", endPoint);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Socket Error SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", sex.SocketErrorCode, sex.ErrorCode);
+                    }
                 }
                 catch (Exception ex)
                 {
