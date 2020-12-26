@@ -84,7 +84,7 @@ namespace PixelFlutServer.Mjpeg
             using (client)
             {
                 var endPoint = client.Client.RemoteEndPoint;
-                _logger.LogInformation("Connection from {Endpoint}", endPoint);
+                _logger.LogInformation("PixelFlut Connection from {Endpoint}", endPoint);
 
                 try
                 {
@@ -99,7 +99,7 @@ namespace PixelFlutServer.Mjpeg
                 catch (IOException iex) when (iex.GetBaseException() is SocketException sex &&
                     (sex.SocketErrorCode == SocketError.ConnectionAborted || sex.SocketErrorCode == SocketError.ConnectionReset || sex.SocketErrorCode == SocketError.TimedOut))
                 {
-                    _logger.LogInformation("Connection {Endpoint} closed!", endPoint);
+                    _logger.LogInformation("PixelFlut Connection {Endpoint} closed!", endPoint);
                 }
                 catch (Exception ex)
                 {

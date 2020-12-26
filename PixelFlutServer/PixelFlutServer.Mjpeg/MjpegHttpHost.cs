@@ -97,7 +97,7 @@ namespace PixelFlutServer.Mjpeg
             {
                 var endPoint = client.Client.RemoteEndPoint;
                 var connectionId = Guid.NewGuid();
-                _logger.LogInformation("Connection from {Endpoint}", endPoint);
+                _logger.LogInformation("HTTP Connection from {Endpoint}", endPoint);
                 var frameWaitSemaphore = new SemaphoreSlim(0, 1);
 
                 // output frame once at the start so the user can see something even when there's nothing currently flooding
@@ -162,7 +162,7 @@ namespace PixelFlutServer.Mjpeg
                 catch (IOException iex) when (iex.GetBaseException() is SocketException sex &&
                     (sex.SocketErrorCode == SocketError.ConnectionAborted || sex.SocketErrorCode == SocketError.ConnectionReset || sex.SocketErrorCode == SocketError.TimedOut))
                 {
-                    _logger.LogInformation("Connection {Endpoint} closed!", endPoint);
+                    _logger.LogInformation("HTTP Connection {Endpoint} closed!", endPoint);
                 }
                 catch (Exception ex)
                 {
