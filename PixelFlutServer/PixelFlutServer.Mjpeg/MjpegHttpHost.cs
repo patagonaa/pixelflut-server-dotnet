@@ -16,6 +16,7 @@ namespace PixelFlutServer.Mjpeg
 {
     class MjpegHttpHost : IHostedService
     {
+        private readonly PixelFlutServerConfig _config;
         private readonly TcpListener _listener;
         private readonly ILogger<MjpegHttpHost> _logger;
         private CancellationTokenSource _cts = new();
@@ -29,14 +30,14 @@ namespace PixelFlutServer.Mjpeg
 
         public MjpegHttpHost(ILogger<MjpegHttpHost> logger, IOptions<PixelFlutServerConfig> options)
         {
-            var config = options.Value;
+            _config = options.Value;
 
-            _listener = TcpListener.Create(config.MjpegPort);
+            _listener = TcpListener.Create(_config.MjpegPort);
             _logger = logger;
 
-            _width = config.Width;
-            _height = config.Height;
-            _bytesPerPixel = config.BytesPerPixel;
+            _width = _config.Width;
+            _height = _config.Height;
+            _bytesPerPixel = _config.BytesPerPixel;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -61,7 +62,7 @@ namespace PixelFlutServer.Mjpeg
                 using (var ms = new MemoryStream())
                 {
                     var encoder = ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
-                    var encParams = new EncoderParameters() { Param = new[] { new EncoderParameter(Encoder.Quality, 70L) } };
+                    var encParams = new EncoderParameters() { Param = new[] { new EncoderParameter(Encoder.Quality, (long)_config.JpegQualityPercent) } };
 
                     while (!_cts.IsCancellationRequested)
                     {
