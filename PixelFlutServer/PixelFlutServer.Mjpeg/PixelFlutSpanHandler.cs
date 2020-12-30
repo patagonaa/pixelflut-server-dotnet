@@ -75,7 +75,7 @@ namespace PixelFlutServer.Mjpeg
                             continue;
                         }
 
-                        stream.Write(Encoding.ASCII.GetBytes($"PX {x} {y} {pixels[pxIndex] | pixels[pxIndex + 1] << 8 | pixels[pxIndex + 2] << 16:X6}\n"));
+                        netstream.Write(Encoding.ASCII.GetBytes($"PX {x} {y} {pixels[pxIndex] | pixels[pxIndex + 1] << 8 | pixels[pxIndex + 2] << 16:X6}\n"));
                         continue;
                     }
                     else if (indices.Count == 5) // PX 1337 1234 FF00FF\n
@@ -123,7 +123,7 @@ namespace PixelFlutServer.Mjpeg
                     var strFirstPart = new string(firstPart);
                     if (strFirstPart == "SIZE")
                     {
-                        stream.Write(Encoding.ASCII.GetBytes($"SIZE {width} {height}\n"));
+                        netstream.Write(Encoding.ASCII.GetBytes($"SIZE {width} {height}\n"));
                     }
                     else if (strFirstPart == "OFFSET")
                     {
