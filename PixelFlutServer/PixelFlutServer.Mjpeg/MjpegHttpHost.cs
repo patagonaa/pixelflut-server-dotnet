@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -20,7 +20,7 @@ namespace PixelFlutServer.Mjpeg
         private readonly ILogger<MjpegHttpHost> _logger;
         private CancellationTokenSource _cts = new();
 
-        private ConcurrentDictionary<Guid, SemaphoreSlim> _frameWaitSemaphores = new();
+        private IList<SemaphoreSlim> _frameWaitSemaphores = new List<SemaphoreSlim>();
         private byte[] _currentJpeg = null;
 
         private readonly int _width;
@@ -58,25 +58,31 @@ namespace PixelFlutServer.Mjpeg
         {
             using (var bitmap = new Bitmap(_width, _height, PixelFormat.Format24bppRgb))
             {
-                while (!_cts.IsCancellationRequested)
+                using (var ms = new MemoryStream())
                 {
-                    var frame = await FrameHub.WaitForFrame(_cts.Token);
+                    var encoder = ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
+                    var encParams = new EncoderParameters() { Param = new[] { new EncoderParameter(Encoder.Quality, 70L) } };
 
-                    var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-                    Marshal.Copy(frame, 0, data.Scan0, _width * _height * _bytesPerPixel);
-                    bitmap.UnlockBits(data);
-                    using (var ms = new MemoryStream())
+                    while (!_cts.IsCancellationRequested)
                     {
-                        var encoder = ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
-                        var encParams = new EncoderParameters() { Param = new[] { new EncoderParameter(Encoder.Quality, 70L) } };
+                        var frame = await FrameHub.WaitForFrame(_cts.Token);
+
+                        var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+                        Marshal.Copy(frame, 0, data.Scan0, _width * _height * _bytesPerPixel);
+                        bitmap.UnlockBits(data);
+
+                        ms.Position = 0;
+                        ms.SetLength(0);
                         bitmap.Save(ms, encoder, encParams);
                         _currentJpeg = ms.ToArray();
-                    }
-
-                    foreach (var semaphore in _frameWaitSemaphores.Values)
-                    {
-                        if (semaphore.CurrentCount == 0)
-                            semaphore.Release();
+                        lock (_frameWaitSemaphores)
+                        {
+                            foreach (var semaphore in _frameWaitSemaphores)
+                            {
+                                if (semaphore.CurrentCount == 0)
+                                    semaphore.Release();
+                            }
+                        }
                     }
                 }
             }
@@ -96,15 +102,16 @@ namespace PixelFlutServer.Mjpeg
             using (client)
             {
                 var endPoint = client.Client.RemoteEndPoint;
-                var connectionId = Guid.NewGuid();
                 _logger.LogInformation("HTTP Connection from {Endpoint}", endPoint);
                 var frameWaitSemaphore = new SemaphoreSlim(0, 1);
 
                 // output frame once at the start so the user can see something even when there's nothing currently flooding
                 if (_currentJpeg != null)
                     frameWaitSemaphore.Release();
-
-                _frameWaitSemaphores.TryAdd(connectionId, frameWaitSemaphore);
+                lock (_frameWaitSemaphores)
+                {
+                    _frameWaitSemaphores.Add(frameWaitSemaphore);
+                }
                 try
                 {
                     using (var stream = client.GetStream())
@@ -170,7 +177,7 @@ namespace PixelFlutServer.Mjpeg
                     }
                     else
                     {
-                        _logger.LogInformation("Socket Error SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", sex.SocketErrorCode, sex.ErrorCode);
+                        _logger.LogInformation("Socket Error from {Endpoint} SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", endPoint, sex.SocketErrorCode, sex.ErrorCode);
                     }
                 }
                 catch (Exception ex)
@@ -179,7 +186,10 @@ namespace PixelFlutServer.Mjpeg
                 }
                 finally
                 {
-                    _frameWaitSemaphores.TryRemove(connectionId, out _);
+                    lock (_frameWaitSemaphores)
+                    {
+                        _frameWaitSemaphores.Remove(frameWaitSemaphore);
+                    }
                 }
             }
         }

@@ -1,6 +1,6 @@
 ﻿namespace PixelFlutServer.Mjpeg
 {
-    class PixelBuffer
+    public class PixelBuffer
     {
         public int Width { get; set; }
         public int Height { get; set; }

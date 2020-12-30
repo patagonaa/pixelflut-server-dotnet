@@ -94,12 +94,24 @@ namespace PixelFlutServer.Mjpeg
                         BytesPerPixel = _bytesPerPixel,
                         Buffer = _pixels
                     };
-                    _pixelFlutHandler.Handle(client.GetStream(), endPoint, buffer, _frameSemaphore, _cts.Token);
+                    using (var stream = client.GetStream())
+                    {
+                        _pixelFlutHandler.Handle(stream, endPoint, buffer, _frameSemaphore, _cts.Token);
+                    }
                 }
-                catch (IOException iex) when (iex.GetBaseException() is SocketException sex &&
-                    (sex.SocketErrorCode == SocketError.ConnectionAborted || sex.SocketErrorCode == SocketError.ConnectionReset || sex.SocketErrorCode == SocketError.TimedOut))
+                catch (IOException iex) when (iex.GetBaseException() is SocketException sex)
                 {
-                    _logger.LogInformation("PixelFlut Connection {Endpoint} closed!", endPoint);
+                    if (sex.SocketErrorCode == SocketError.ConnectionAborted ||
+                        sex.SocketErrorCode == SocketError.ConnectionReset ||
+                        sex.SocketErrorCode == SocketError.TimedOut ||
+                        sex.SocketErrorCode == SocketError.Shutdown)
+                    {
+                        _logger.LogInformation("PixelFlut Connection {Endpoint} closed!", endPoint);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Socket Error from {Endpoint} SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", endPoint, sex.SocketErrorCode, sex.ErrorCode);
+                    }
                 }
                 catch (Exception ex)
                 {

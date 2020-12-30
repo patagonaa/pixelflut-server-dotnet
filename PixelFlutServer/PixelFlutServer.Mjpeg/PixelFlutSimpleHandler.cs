@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace PixelFlutServer.Mjpeg
 {
-    class PixelFlutSimpleHandler : IPixelFlutHandler
+    public class PixelFlutSimpleHandler : IPixelFlutHandler
     {
         private readonly ILogger<PixelFlutSimpleHandler> _logger;
 
@@ -22,8 +22,8 @@ namespace PixelFlutServer.Mjpeg
             var bytesPerPixel = pixelBuffer.BytesPerPixel;
             var pixels = pixelBuffer.Buffer;
 
-            var sr = new StreamReader(stream);
-            var sw = new StreamWriter(stream);
+            var sr = new StreamReader(stream, leaveOpen: true);
+            var sw = new StreamWriter(stream, leaveOpen: true);
             sw.NewLine = "\n";
             sw.AutoFlush = true;
 
@@ -51,7 +51,9 @@ namespace PixelFlutServer.Mjpeg
 
                     if (y < 0 || y >= height || x < 0 || x >= width)
                     {
-                        _logger.LogWarning("Invliad coordinates at line {Line}", line);
+#if DEBUG
+                        _logger.LogWarning("Invalid coordinates from {EndPoint} at line {Line}", endPoint, line);
+#endif
                         continue;
                     }
 
