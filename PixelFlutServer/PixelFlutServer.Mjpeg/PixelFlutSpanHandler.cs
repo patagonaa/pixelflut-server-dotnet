@@ -30,6 +30,9 @@ namespace PixelFlutServer.Mjpeg
             var stream = new BufferedStream(netstream, 1_000_000);
             var indices = new List<int>(16);
 
+            int offsetX = 0;
+            int offsetY = 0;
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 bufferPos = 0;
@@ -55,29 +58,47 @@ namespace PixelFlutServer.Mjpeg
 
                 if (firstPart[0] == 'P' && firstPart[1] == 'X')
                 {
-                    if (indices.Count != 5 ||
+                    if (indices.Count < 4 ||
                         !int.TryParse(buffer.Slice(indices[1], indices[2] - indices[1] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var x) ||
                         !int.TryParse(buffer.Slice(indices[2], indices[3] - indices[2] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var y))
                         throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
 
-                    var colorSpan = buffer.Slice(indices[3], indices[4] - indices[3] - 1);
-                    //bool hasAlpha = colorSpan.Length == 8;
-                    if (!uint.TryParse(colorSpan.Slice(0, 6), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint color))
+                    if (indices.Count == 4) // PX 1337 1234\n
                     {
-                        throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
-                    }
+                        var pxIndex = (y * width + x) * bytesPerPixel;
 
-                    if (y < 0 || y >= height || x < 0 || x >= width)
-                    {
+                        if (y < 0 || y >= height || x < 0 || x >= width)
+                        {
 #if DEBUG
                             _logger.LogWarning("Invalid coordinates from {EndPoint} at line {Line}", endPoint, new string(buffer.Slice(0, bufferPos)));
 #endif
+                            continue;
+                        }
+
+                        stream.Write(Encoding.ASCII.GetBytes($"PX {x} {y} {pixels[pxIndex] | pixels[pxIndex + 1] << 8 | pixels[pxIndex + 2] << 16:X6}\n"));
                         continue;
                     }
-
-                    var pixelIndex = (y * width + x) * bytesPerPixel;
-                    try
+                    else if (indices.Count == 5) // PX 1337 1234 FF00FF\n
                     {
+                        var colorSpan = buffer.Slice(indices[3], indices[4] - indices[3] - 1);
+                        //bool hasAlpha = colorSpan.Length == 8;
+                        if (!uint.TryParse(colorSpan.Slice(0, 6), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint color))
+                        {
+                            throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
+                        }
+
+                        var xOut = offsetX + x;
+                        var yOut = offsetY + y;
+
+                        if (yOut < 0 || yOut >= height || xOut < 0 || xOut >= width)
+                        {
+#if DEBUG
+                            _logger.LogWarning("Invalid coordinates from {EndPoint} at line {Line}", endPoint, new string(buffer.Slice(0, bufferPos)));
+#endif
+                            continue;
+                        }
+
+                        var pixelIndex = (yOut * width + xOut) * bytesPerPixel;
                         pixels[pixelIndex] = (byte)(color & 0xFF);
                         pixels[pixelIndex + 1] = (byte)(color >> 8 & 0xFF);
                         pixels[pixelIndex + 2] = (byte)(color >> 16 & 0xFF);
@@ -92,15 +113,28 @@ namespace PixelFlutServer.Mjpeg
                             }
                         }
                     }
-                    catch (Exception)
+                    else
                     {
-                        throw;
+                        throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
                     }
-
                 }
-                else if (new string(firstPart) == "SIZE")
+                else
                 {
-                    stream.Write(Encoding.ASCII.GetBytes($"SIZE {width} {height}\n"));
+                    var strFirstPart = new string(firstPart);
+                    if (strFirstPart == "SIZE")
+                    {
+                        stream.Write(Encoding.ASCII.GetBytes($"SIZE {width} {height}\n"));
+                    }
+                    else if (strFirstPart == "OFFSET")
+                    {
+                        if (indices.Count != 4 ||
+                            !int.TryParse(buffer.Slice(indices[1], indices[2] - indices[1] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var x) ||
+                            !int.TryParse(buffer.Slice(indices[2], indices[3] - indices[2] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var y))
+                            throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
+
+                        offsetX = x;
+                        offsetY = y;
+                    }
                 }
             }
         }

@@ -88,7 +88,8 @@ namespace PixelFlutServer.Mjpeg
 
                 try
                 {
-                    var buffer = new PixelBuffer {
+                    var buffer = new PixelBuffer
+                    {
                         Width = _width,
                         Height = _height,
                         BytesPerPixel = _bytesPerPixel,
@@ -101,14 +102,10 @@ namespace PixelFlutServer.Mjpeg
                 }
                 catch (IOException iex) when (iex.GetBaseException() is SocketException sex)
                 {
-                    if (sex.SocketErrorCode == SocketError.ConnectionAborted ||
-                        sex.SocketErrorCode == SocketError.ConnectionReset ||
-                        sex.SocketErrorCode == SocketError.TimedOut ||
-                        sex.SocketErrorCode == SocketError.Shutdown)
-                    {
-                        _logger.LogInformation("PixelFlut Connection {Endpoint} closed!", endPoint);
-                    }
-                    else
+                    if (sex.SocketErrorCode != SocketError.ConnectionAborted &&
+                        sex.SocketErrorCode != SocketError.ConnectionReset &&
+                        sex.SocketErrorCode != SocketError.TimedOut &&
+                        sex.SocketErrorCode != SocketError.Shutdown)
                     {
                         _logger.LogInformation("Socket Error from {Endpoint} SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", endPoint, sex.SocketErrorCode, sex.ErrorCode);
                     }
@@ -116,6 +113,10 @@ namespace PixelFlutServer.Mjpeg
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Something went wrong");
+                }
+                finally
+                {
+                    _logger.LogInformation("PixelFlut Connection {Endpoint} closed!", endPoint);
                 }
             }
         }
