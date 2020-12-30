@@ -1,4 +1,4 @@
-﻿namespace PixelFlutServer.Mjpeg
+﻿namespace PixelFlutServer.Mjpeg.PixelFlut
 {
     public class PixelBuffer
     {

@@ -4,7 +4,7 @@ using System.IO;
 using System.Net;
 using System.Threading;
 
-namespace PixelFlutServer.Mjpeg
+namespace PixelFlutServer.Mjpeg.PixelFlut
 {
     public class PixelFlutSimpleHandler : IPixelFlutHandler
     {

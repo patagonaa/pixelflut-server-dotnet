@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using PixelFlutServer.Mjpeg;
+using PixelFlutServer.Mjpeg.PixelFlut;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

@@ -2,7 +2,7 @@
 using System.Net;
 using System.Threading;
 
-namespace PixelFlutServer.Mjpeg
+namespace PixelFlutServer.Mjpeg.PixelFlut
 {
     public interface IPixelFlutHandler
     {

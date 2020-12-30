@@ -2,13 +2,14 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PixelFlutServer.Mjpeg
+namespace PixelFlutServer.Mjpeg.PixelFlut
 {
     class PixelFlutHost : IHostedService
     {
@@ -22,6 +23,7 @@ namespace PixelFlutServer.Mjpeg
         private readonly byte[] _pixels;
         private CancellationTokenSource _cts = new();
         private static SemaphoreSlim _frameSemaphore = new SemaphoreSlim(0, 1);
+        private IList<PixelFlutConnectionInfo> _connectionInfos = new List<PixelFlutConnectionInfo>();
 
         public PixelFlutHost(ILogger<PixelFlutHost> logger, IPixelFlutHandler pixelFlutHandler, IOptions<PixelFlutServerConfig> options)
         {
@@ -45,6 +47,7 @@ namespace PixelFlutServer.Mjpeg
             _listener.Start();
             Task.Factory.StartNew(() => PublishFrameWorker(), TaskCreationOptions.LongRunning);
             Task.Factory.StartNew(() => ConnectionAcceptWorker(), TaskCreationOptions.LongRunning);
+            Task.Factory.StartNew(() => PrintStatsWorker(), TaskCreationOptions.LongRunning);
             return Task.CompletedTask;
         }
 
@@ -53,6 +56,20 @@ namespace PixelFlutServer.Mjpeg
             _listener.Stop();
             _cts.Cancel();
             return Task.CompletedTask;
+        }
+
+        private async Task PrintStatsWorker()
+        {
+            while (!_cts.IsCancellationRequested)
+            {
+                int connectionCount;
+                lock (_connectionInfos)
+                {
+                    connectionCount = _connectionInfos.Count;
+                }
+                _logger.LogInformation("PixelFlut Connections: {ConnectionCount}", connectionCount);
+                await Task.Delay(10000);
+            }
         }
 
         public async Task PublishFrameWorker()
@@ -83,8 +100,12 @@ namespace PixelFlutServer.Mjpeg
         {
             using (client)
             {
-                var endPoint = client.Client.RemoteEndPoint;
-                _logger.LogInformation("PixelFlut Connection from {Endpoint}", endPoint);
+                var connectionInfo = new PixelFlutConnectionInfo { EndPoint = client.Client.RemoteEndPoint };
+                _logger.LogInformation("PixelFlut Connection from {Endpoint}", connectionInfo.EndPoint);
+                lock (_connectionInfos)
+                {
+                    _connectionInfos.Add(connectionInfo);
+                }
 
                 try
                 {
@@ -97,7 +118,7 @@ namespace PixelFlutServer.Mjpeg
                     };
                     using (var stream = client.GetStream())
                     {
-                        _pixelFlutHandler.Handle(stream, endPoint, buffer, _frameSemaphore, _cts.Token);
+                        _pixelFlutHandler.Handle(stream, connectionInfo.EndPoint, buffer, _frameSemaphore, _cts.Token);
                     }
                 }
                 catch (IOException iex) when (iex.GetBaseException() is SocketException sex)
@@ -107,7 +128,7 @@ namespace PixelFlutServer.Mjpeg
                         sex.SocketErrorCode != SocketError.TimedOut &&
                         sex.SocketErrorCode != SocketError.Shutdown)
                     {
-                        _logger.LogInformation("Socket Error from {Endpoint} SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", endPoint, sex.SocketErrorCode, sex.ErrorCode);
+                        _logger.LogInformation("Socket Error from {Endpoint} SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", connectionInfo.EndPoint, sex.SocketErrorCode, sex.ErrorCode);
                     }
                 }
                 catch (Exception ex)
@@ -116,7 +137,11 @@ namespace PixelFlutServer.Mjpeg
                 }
                 finally
                 {
-                    _logger.LogInformation("PixelFlut Connection {Endpoint} closed!", endPoint);
+                    _logger.LogInformation("PixelFlut Connection {Endpoint} closed!", connectionInfo.EndPoint);
+                    lock (_connectionInfos)
+                    {
+                        _connectionInfos.Remove(connectionInfo);
+                    }
                 }
             }
         }

@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PixelFlutServer.Mjpeg
+namespace PixelFlutServer.Mjpeg.Http
 {
     class MjpegHttpHost : IHostedService
     {
@@ -20,13 +20,12 @@ namespace PixelFlutServer.Mjpeg
         private readonly TcpListener _listener;
         private readonly ILogger<MjpegHttpHost> _logger;
         private CancellationTokenSource _cts = new();
-
-        private IList<SemaphoreSlim> _frameWaitSemaphores = new List<SemaphoreSlim>();
         private byte[] _currentJpeg = null;
 
         private readonly int _width;
         private readonly int _height;
         private readonly int _bytesPerPixel;
+        private readonly IList<MjpegConnectionInfo> _connectionInfos = new List<MjpegConnectionInfo>();
 
         public MjpegHttpHost(ILogger<MjpegHttpHost> logger, IOptions<PixelFlutServerConfig> options)
         {
@@ -45,6 +44,7 @@ namespace PixelFlutServer.Mjpeg
             _listener.Start();
             Task.Factory.StartNew(() => ConnectionAcceptWorker(), TaskCreationOptions.LongRunning);
             Task.Factory.StartNew(() => GetFrameWorker(), TaskCreationOptions.LongRunning);
+            Task.Factory.StartNew(() => PrintStatsWorker(), TaskCreationOptions.LongRunning);
             return Task.CompletedTask;
         }
 
@@ -53,6 +53,20 @@ namespace PixelFlutServer.Mjpeg
             _listener.Stop();
             _cts.Cancel();
             return Task.CompletedTask;
+        }
+
+        private async Task PrintStatsWorker()
+        {
+            while (!_cts.IsCancellationRequested)
+            {
+                int connectionCount;
+                lock (_connectionInfos)
+                {
+                    connectionCount = _connectionInfos.Count;
+                }
+                _logger.LogInformation("HTTP Connections: {ConnectionCount}", connectionCount);
+                await Task.Delay(10000);
+            }
         }
 
         private async Task GetFrameWorker()
@@ -76,12 +90,19 @@ namespace PixelFlutServer.Mjpeg
                         ms.SetLength(0);
                         bitmap.Save(ms, encoder, encParams);
                         _currentJpeg = ms.ToArray();
-                        lock (_frameWaitSemaphores)
+                        lock (_connectionInfos)
                         {
-                            foreach (var semaphore in _frameWaitSemaphores)
+                            foreach (var info in _connectionInfos)
                             {
-                                if (semaphore.CurrentCount == 0)
-                                    semaphore.Release();
+                                var semaphore = info.FrameWaitSemaphore;
+                                try
+                                {
+                                    if (semaphore.CurrentCount == 0)
+                                        semaphore.Release();
+                                }
+                                catch (SemaphoreFullException)
+                                {
+                                }
                             }
                         }
                     }
@@ -102,17 +123,18 @@ namespace PixelFlutServer.Mjpeg
         {
             using (client)
             {
-                var endPoint = client.Client.RemoteEndPoint;
-                _logger.LogInformation("HTTP Connection from {Endpoint}", endPoint);
-                var frameWaitSemaphore = new SemaphoreSlim(0, 1);
+                var connectionInfo = new MjpegConnectionInfo { EndPoint = client.Client.RemoteEndPoint, FrameWaitSemaphore = new SemaphoreSlim(0, 1) };
+                _logger.LogInformation("HTTP Connection from {Endpoint}", connectionInfo.EndPoint);
+                lock (_connectionInfos)
+                {
+                    _connectionInfos.Add(connectionInfo);
+                }
+
+                var frameWaitSemaphore = connectionInfo.FrameWaitSemaphore;
 
                 // output frame once at the start so the user can see something even when there's nothing currently flooding
                 if (_currentJpeg != null)
                     frameWaitSemaphore.Release();
-                lock (_frameWaitSemaphores)
-                {
-                    _frameWaitSemaphores.Add(frameWaitSemaphore);
-                }
                 try
                 {
                     using (var stream = client.GetStream())
@@ -169,16 +191,12 @@ namespace PixelFlutServer.Mjpeg
                 }
                 catch (IOException iex) when (iex.GetBaseException() is SocketException sex)
                 {
-                    if (sex.SocketErrorCode == SocketError.ConnectionAborted ||
-                        sex.SocketErrorCode == SocketError.ConnectionReset ||
-                        sex.SocketErrorCode == SocketError.TimedOut ||
-                        sex.SocketErrorCode == SocketError.Shutdown)
+                    if (sex.SocketErrorCode != SocketError.ConnectionAborted &&
+                        sex.SocketErrorCode != SocketError.ConnectionReset &&
+                        sex.SocketErrorCode != SocketError.TimedOut &&
+                        sex.SocketErrorCode != SocketError.Shutdown)
                     {
-                        _logger.LogInformation("HTTP Connection {Endpoint} closed!", endPoint);
-                    }
-                    else
-                    {
-                        _logger.LogInformation("Socket Error from {Endpoint} SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", endPoint, sex.SocketErrorCode, sex.ErrorCode);
+                        _logger.LogInformation("Socket Error from {Endpoint} SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", connectionInfo.EndPoint, sex.SocketErrorCode, sex.ErrorCode);
                     }
                 }
                 catch (Exception ex)
@@ -187,9 +205,10 @@ namespace PixelFlutServer.Mjpeg
                 }
                 finally
                 {
-                    lock (_frameWaitSemaphores)
+                    _logger.LogInformation("HTTP Connection {Endpoint} closed!", connectionInfo.EndPoint);
+                    lock (_connectionInfos)
                     {
-                        _frameWaitSemaphores.Remove(frameWaitSemaphore);
+                        _connectionInfos.Remove(connectionInfo);
                     }
                 }
             }
