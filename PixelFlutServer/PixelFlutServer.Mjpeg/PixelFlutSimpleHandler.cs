@@ -69,7 +69,13 @@ namespace PixelFlutServer.Mjpeg
                         pixels[pixelIndex + 2] = (byte)(color >> 16 & 0xFF);
                         if (frameReadySemaphore.CurrentCount == 0)
                         {
-                            frameReadySemaphore.Release();
+                            try
+                            {
+                                frameReadySemaphore.Release();
+                            }
+                            catch (SemaphoreFullException)
+                            {
+                            }
                         }
                     }
                     catch (Exception)
