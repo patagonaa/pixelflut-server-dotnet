@@ -13,7 +13,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
     public class PixelFlutSpanHandler : IPixelFlutHandler
     {
         private readonly ILogger<PixelFlutSpanHandler> _logger;
-        private static readonly Counter _pixelCounter = Metrics.CreateCounter("pixelflut_pixels_received", "Total number of received pixels");
+        private static readonly Counter _pixelRecvCounter = Metrics.CreateCounter("pixelflut_pixels_received", "Total number of received pixels");
+        private static readonly Counter _pixelSentCounter = Metrics.CreateCounter("pixelflut_pixels_sent", "Total number of sent pixels");
         private static readonly Counter _byteCounter = Metrics.CreateCounter("pixelflut_bytes_received", "Total number of received bytes");
 
         public PixelFlutSpanHandler(ILogger<PixelFlutSpanHandler> logger)
@@ -80,6 +81,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         }
 
                         netstream.Write(Encoding.ASCII.GetBytes($"PX {x} {y} {pixels[pxIndex] | pixels[pxIndex + 1] << 8 | pixels[pxIndex + 2] << 16:X6}\n"));
+                        _pixelSentCounter.Inc();
                         continue;
                     }
                     else if (indices.Count == 5) // PX 1337 1234 FF00FF\n
@@ -116,7 +118,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             {
                             }
                         }
-                        _pixelCounter.Inc();
+                        _pixelRecvCounter.Inc();
                     }
                     else
                     {

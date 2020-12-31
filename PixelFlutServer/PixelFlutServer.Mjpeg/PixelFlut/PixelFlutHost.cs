@@ -23,7 +23,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private readonly int _bytesPerPixel;
         private readonly byte[] _pixels;
         private CancellationTokenSource _cts = new();
-        private static SemaphoreSlim _frameSemaphore = new SemaphoreSlim(0, 1);
+        private static SemaphoreSlim _frameSemaphore = new SemaphoreSlim(1, 1);
         private IList<PixelFlutConnectionInfo> _connectionInfos = new List<PixelFlutConnectionInfo>();
         private readonly Gauge _connectionCounter = Metrics.CreateGauge("pixelflut_connections", "Number of Pixelflut connections");
 
