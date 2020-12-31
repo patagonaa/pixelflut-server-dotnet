@@ -93,6 +93,19 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
                         }
 
+                        byte alpha;
+                        if(colorSpan.Length == 8)
+                        {
+                            if(!byte.TryParse(colorSpan.Slice(6, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out alpha))
+                            {
+                                throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
+                            }
+                        }
+                        else
+                        {
+                            alpha = 0xFF;
+                        }
+
                         var xOut = offsetX + x;
                         var yOut = offsetY + y;
 
@@ -104,10 +117,38 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             continue;
                         }
 
+                        byte r = (byte)(color & 0xFF);
+                        byte g = (byte)(color >> 8 & 0xFF);
+                        byte b = (byte)(color >> 16 & 0xFF);
+
                         var pixelIndex = (yOut * width + xOut) * bytesPerPixel;
-                        pixels[pixelIndex] = (byte)(color & 0xFF);
-                        pixels[pixelIndex + 1] = (byte)(color >> 8 & 0xFF);
-                        pixels[pixelIndex + 2] = (byte)(color >> 16 & 0xFF);
+
+                        if (alpha == 0x00)
+                        {
+                        }
+                        else if (alpha == 0xFF)
+                        {
+                            pixels[pixelIndex] = r;
+                            pixels[pixelIndex + 1] = g;
+                            pixels[pixelIndex + 2] = b;
+                        }
+                        else
+                        {
+                            var oldR = pixels[pixelIndex];
+                            var oldG = pixels[pixelIndex + 1];
+                            var oldB = pixels[pixelIndex + 2];
+                            var alphaFactor = alpha / 255.0;
+
+                            var newR = (byte)(oldR * (1 - alphaFactor) + r * alphaFactor);
+                            var newG = (byte)(oldG * (1 - alphaFactor) + g * alphaFactor);
+                            var newB = (byte)(oldB * (1 - alphaFactor) + b * alphaFactor);
+
+                            pixels[pixelIndex] = newR;
+                            pixels[pixelIndex + 1] = newG;
+                            pixels[pixelIndex + 2] = newB;
+                        }
+
+
                         if (frameReadySemaphore.CurrentCount == 0)
                         {
                             try
