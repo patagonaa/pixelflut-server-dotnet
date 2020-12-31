@@ -38,6 +38,7 @@ namespace PixelFlutServer.Mjpeg
             services.AddSingleton<IPixelFlutHandler, PixelFlutSpanHandler>();
             services.AddHostedService<PixelFlutHost>();
             services.AddHostedService<MjpegHttpHost>();
+            services.AddHostedService<MetricsHost>();
         }
 
         private static void ConfigureAppConfiguration(HostBuilderContext ctx, IConfigurationBuilder configBuilder)

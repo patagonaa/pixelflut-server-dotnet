@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Prometheus;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -26,6 +27,7 @@ namespace PixelFlutServer.Mjpeg.Http
         private readonly int _height;
         private readonly int _bytesPerPixel;
         private readonly IList<MjpegConnectionInfo> _connectionInfos = new List<MjpegConnectionInfo>();
+        private readonly Gauge _connectionCounter = Metrics.CreateGauge("mjpeg_http_connections", "Number of MJPEG HTTP connections");
 
         public MjpegHttpHost(ILogger<MjpegHttpHost> logger, IOptions<PixelFlutServerConfig> options)
         {
@@ -64,6 +66,7 @@ namespace PixelFlutServer.Mjpeg.Http
                 {
                     connectionCount = _connectionInfos.Count;
                 }
+                _connectionCounter.Set(connectionCount);
                 _logger.LogInformation("HTTP Connections: {ConnectionCount}", connectionCount);
                 await Task.Delay(10000);
             }

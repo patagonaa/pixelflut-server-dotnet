@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Prometheus;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -24,6 +25,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private CancellationTokenSource _cts = new();
         private static SemaphoreSlim _frameSemaphore = new SemaphoreSlim(0, 1);
         private IList<PixelFlutConnectionInfo> _connectionInfos = new List<PixelFlutConnectionInfo>();
+        private readonly Gauge _connectionCounter = Metrics.CreateGauge("pixelflut_connections", "Number of Pixelflut connections");
 
         public PixelFlutHost(ILogger<PixelFlutHost> logger, IPixelFlutHandler pixelFlutHandler, IOptions<PixelFlutServerConfig> options)
         {
@@ -67,6 +69,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 {
                     connectionCount = _connectionInfos.Count;
                 }
+                _connectionCounter.Set(connectionCount);
                 _logger.LogInformation("PixelFlut Connections: {ConnectionCount}", connectionCount);
                 await Task.Delay(10000);
             }

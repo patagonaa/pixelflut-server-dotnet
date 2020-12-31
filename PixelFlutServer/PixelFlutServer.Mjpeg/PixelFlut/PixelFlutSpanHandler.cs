@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Prometheus;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -12,6 +13,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
     public class PixelFlutSpanHandler : IPixelFlutHandler
     {
         private readonly ILogger<PixelFlutSpanHandler> _logger;
+        private static readonly Counter _pixelCounter = Metrics.CreateCounter("pixelflut_pixels_received", "Total number of received pixels");
+        private static readonly Counter _byteCounter = Metrics.CreateCounter("pixelflut_bytes_received", "Total number of received bytes");
 
         public PixelFlutSpanHandler(ILogger<PixelFlutSpanHandler> logger)
         {
@@ -53,6 +56,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                     if (chr == '\n')
                         break;
                 }
+                _byteCounter.Inc(bufferPos);
 
                 var firstPart = buffer.Slice(indices[0], indices[1] - indices[0] - 1);
 
@@ -112,6 +116,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             {
                             }
                         }
+                        _pixelCounter.Inc();
                     }
                     else
                     {
