@@ -67,7 +67,7 @@ namespace PixelFlutServer.Mjpeg.Http
                     connectionCount = _connectionInfos.Count;
                 }
                 _connectionCounter.Set(connectionCount);
-                _logger.LogInformation("HTTP Connections: {ConnectionCount}", connectionCount);
+                _logger.LogDebug("HTTP Connections: {ConnectionCount}", connectionCount);
                 await Task.Delay(10000);
             }
         }
@@ -83,16 +83,31 @@ namespace PixelFlutServer.Mjpeg.Http
 
                     while (!_cts.IsCancellationRequested)
                     {
-                        var frame = await FrameHub.WaitForFrame(_cts.Token);
+                        byte[] frame = null;
 
-                        var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-                        Marshal.Copy(frame, 0, data.Scan0, _width * _height * _bytesPerPixel);
-                        bitmap.UnlockBits(data);
+                        // send frame every now and then even if there's no new one available to give the TcpClient a chance to clean up old connections
+                        using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+                        {
+                            try
+                            {
+                                frame = await FrameHub.WaitForFrame(CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, timeoutCts.Token).Token);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                            }
+                        }
 
-                        ms.Position = 0;
-                        ms.SetLength(0);
-                        bitmap.Save(ms, encoder, encParams);
-                        _currentJpeg = ms.ToArray();
+                        if (frame != null)
+                        {
+                            var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+                            Marshal.Copy(frame, 0, data.Scan0, _width * _height * _bytesPerPixel);
+                            bitmap.UnlockBits(data);
+
+                            ms.Position = 0;
+                            ms.SetLength(0);
+                            bitmap.Save(ms, encoder, encParams);
+                            _currentJpeg = ms.ToArray();
+                        }
                         lock (_connectionInfos)
                         {
                             foreach (var info in _connectionInfos)
@@ -126,6 +141,7 @@ namespace PixelFlutServer.Mjpeg.Http
         {
             using (client)
             {
+                client.ReceiveTimeout = 30000;
                 client.SendTimeout = 30000;
 
                 var connectionInfo = new MjpegConnectionInfo { EndPoint = client.Client.RemoteEndPoint, FrameWaitSemaphore = new SemaphoreSlim(0, 1) };
