@@ -156,8 +156,12 @@ namespace PixelFlutServer.Mjpeg.Http
                         if (splitCmd[0] != "GET" || splitCmd[1] != "/")
                             return;
 
-                        while (sr.ReadLine() != "")
+                        string headerLine;
+                        while ((headerLine = sr.ReadLine()) != "")
                         {
+                            if (headerLine.StartsWith("User-Agent: ", StringComparison.OrdinalIgnoreCase) ||
+                                headerLine.StartsWith("Referer: ", StringComparison.OrdinalIgnoreCase))
+                                _logger.LogInformation(headerLine);
                         }
 
                         sw.WriteLine("HTTP/1.1 200 OK");
