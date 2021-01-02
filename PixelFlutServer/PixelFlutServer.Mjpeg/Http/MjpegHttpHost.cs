@@ -176,7 +176,9 @@ namespace PixelFlutServer.Mjpeg.Http
                         while ((headerLine = sr.ReadLine()) != "")
                         {
                             if (headerLine.StartsWith("User-Agent: ", StringComparison.OrdinalIgnoreCase) ||
-                                headerLine.StartsWith("Referer: ", StringComparison.OrdinalIgnoreCase))
+                                headerLine.StartsWith("Referer: ", StringComparison.OrdinalIgnoreCase) ||
+                                headerLine.StartsWith("X-Forwarded-For: ", StringComparison.OrdinalIgnoreCase) ||
+                                headerLine.StartsWith("Host: ", StringComparison.OrdinalIgnoreCase))
                                 _logger.LogInformation(headerLine);
                         }
 
