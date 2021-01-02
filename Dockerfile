@@ -9,7 +9,6 @@ RUN dotnet publish -c Release PixelFlutServer.Mjpeg/PixelFlutServer.Mjpeg.csproj
 FROM mcr.microsoft.com/dotnet/runtime:5.0
 WORKDIR /app
 RUN apt-get update
-#RUN apt-get install -y --allow-unauthenticated libc6-dev libgdiplus libx11-dev 
 RUN apt-get install -y --allow-unauthenticated libgdiplus
 COPY --from=build /app/build/ ./
 ENTRYPOINT ["dotnet", "PixelFlutServer.Mjpeg.dll"]
