@@ -126,6 +126,8 @@ namespace PixelFlutServer.Mjpeg.Http
         {
             using (client)
             {
+                client.SendTimeout = 30000;
+
                 var connectionInfo = new MjpegConnectionInfo { EndPoint = client.Client.RemoteEndPoint, FrameWaitSemaphore = new SemaphoreSlim(0, 1) };
                 _logger.LogInformation("HTTP Connection from {Endpoint}", connectionInfo.EndPoint);
                 lock (_connectionInfos)
@@ -194,21 +196,15 @@ namespace PixelFlutServer.Mjpeg.Http
                 }
                 catch (IOException iex) when (iex.GetBaseException() is SocketException sex)
                 {
-                    if (sex.SocketErrorCode != SocketError.ConnectionAborted &&
-                        sex.SocketErrorCode != SocketError.ConnectionReset &&
-                        sex.SocketErrorCode != SocketError.TimedOut &&
-                        sex.SocketErrorCode != SocketError.Shutdown)
-                    {
-                        _logger.LogInformation("Socket Error from {Endpoint} SocketErrorCode {SocketErrorCode}, ErrorCode {ErrorCode}", connectionInfo.EndPoint, sex.SocketErrorCode, sex.ErrorCode);
-                    }
+                    _logger.LogInformation("HTTP connection {Endpoint} closed: {SocketErrorCode} / {ErrorCode}", connectionInfo.EndPoint, sex.SocketErrorCode, sex.ErrorCode);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Something went wrong");
+                    _logger.LogWarning(ex, "Something went wrong at HTTP connection {Endpoint}", connectionInfo.EndPoint);
                 }
                 finally
                 {
-                    _logger.LogInformation("HTTP Connection {Endpoint} closed!", connectionInfo.EndPoint);
+                    _logger.LogDebug("HTTP connection {Endpoint} closed!", connectionInfo.EndPoint);
                     lock (_connectionInfos)
                     {
                         _connectionInfos.Remove(connectionInfo);
