@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
-using PixelFlutServer.Mjpeg;
 using PixelFlutServer.Mjpeg.PixelFlut;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace PixelFlutServer.Tests
 {
@@ -36,7 +36,7 @@ namespace PixelFlutServer.Tests
         }
 
         [Test]
-        public void Test_Handlers_EqualResult()
+        public async Task Test_Handlers_EqualResult()
         {
             var width = 4000;
             var height = 4000;
@@ -53,11 +53,12 @@ namespace PixelFlutServer.Tests
             var simpleHandler = new PixelFlutSimpleHandler(NullLogger<PixelFlutSimpleHandler>.Instance);
 
             _testData.Position = 0;
-            simpleHandler.Handle(_testData, null, expectedBuffer, new SemaphoreSlim(1, 1), CancellationToken.None);
+            await simpleHandler.Handle(_testData, null, expectedBuffer, new SemaphoreSlim(1, 1), CancellationToken.None);
 
             var suts = new List<IPixelFlutHandler>
             {
-                new PixelFlutSpanHandler(NullLogger<PixelFlutSpanHandler>.Instance)
+                new PixelFlutSpanHandler(NullLogger<PixelFlutSpanHandler>.Instance),
+                new PixelFlutPipeHandler(NullLogger<PixelFlutSpanHandler>.Instance)
             };
 
             foreach (var sut in suts)
@@ -71,14 +72,14 @@ namespace PixelFlutServer.Tests
                     BytesPerPixel = bytesPerPixel
                 };
 
-                sut.Handle(_testData, null, actualBuffer, new SemaphoreSlim(1, 1), CancellationToken.None);
+                await sut.Handle(_testData, null, actualBuffer, new SemaphoreSlim(1, 1), CancellationToken.None);
 
                 CollectionAssert.AreEqual(expectedBuffer.Buffer, actualBuffer.Buffer);
             }
         }
 
         [Test]
-        public void Test_Handlers_Performance()
+        public async Task Test_Handlers_Performance()
         {
             var width = 4000;
             var height = 4000;
@@ -87,7 +88,8 @@ namespace PixelFlutServer.Tests
             var suts = new List<IPixelFlutHandler>
             {
                 new PixelFlutSimpleHandler(NullLogger<PixelFlutSimpleHandler>.Instance),
-                new PixelFlutSpanHandler(NullLogger<PixelFlutSpanHandler>.Instance)
+                new PixelFlutSpanHandler(NullLogger<PixelFlutSpanHandler>.Instance),
+                new PixelFlutPipeHandler(NullLogger<PixelFlutSpanHandler>.Instance),
             };
 
             foreach (var sut in suts)
@@ -102,7 +104,7 @@ namespace PixelFlutServer.Tests
                 };
 
                 var sw = Stopwatch.StartNew();
-                sut.Handle(_testData, null, actualBuffer, new SemaphoreSlim(1, 1), CancellationToken.None);
+                await sut.Handle(_testData, null, actualBuffer, new SemaphoreSlim(1, 1), CancellationToken.None);
                 sw.Stop();
                 Console.WriteLine($"{sut.GetType()}: {sw.ElapsedMilliseconds}ms");
             }

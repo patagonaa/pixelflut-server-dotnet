@@ -99,7 +99,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             }
         }
 
-        private void ConnectionHandler(TcpClient client)
+        private async void ConnectionHandler(TcpClient client)
         {
             using (client)
             {
@@ -123,7 +123,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                     };
                     using (var stream = client.GetStream())
                     {
-                        _pixelFlutHandler.Handle(stream, connectionInfo.EndPoint, buffer, _frameSemaphore, _cts.Token);
+                        await _pixelFlutHandler.Handle(stream, connectionInfo.EndPoint, buffer, _frameSemaphore, _cts.Token);
                     }
                     _logger.LogInformation("PixelFlut connection {Endpoint} closed!", connectionInfo.EndPoint);
                 }

@@ -7,6 +7,7 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace PixelFlutServer.Mjpeg.PixelFlut
 {
@@ -26,7 +27,12 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private ulong _handledRecvPixels = 0;
         private ulong _handledSentPixels = 0;
 
-        public void Handle(Stream netstream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
+        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
+        {
+            await Task.Factory.StartNew(() => HandleInternal(stream, endPoint, pixelBuffer, frameReadySemaphore, cancellationToken), TaskCreationOptions.LongRunning);
+        }
+
+        private void HandleInternal(Stream netstream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
         {
             var width = pixelBuffer.Width;
             var height = pixelBuffer.Height;
