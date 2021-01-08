@@ -37,7 +37,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             var width = pixelBuffer.Width;
             var height = pixelBuffer.Height;
             var bytesPerPixel = pixelBuffer.BytesPerPixel;
-            var pixels = pixelBuffer.Buffer;
+            var pixelsBgr = pixelBuffer.Buffer;
 
             var buffer = new Span<char>(new char[1000]);
             int bufferPos;
@@ -77,14 +77,29 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                     }
                     Interlocked.Add(ref _handledRecvBytes, (ulong)bufferPos);
 
+                    if (indices.Count < 2)
+                    {
+                        LogInvalidLine(endPoint, buffer, bufferPos);
+                        continue;
+                    }
+
                     var firstPart = buffer.Slice(indices[0], indices[1] - indices[0] - 1);
+
+                    if (firstPart.Length < 2)
+                    {
+                        LogInvalidLine(endPoint, buffer, bufferPos);
+                        continue;
+                    }
 
                     if (firstPart[0] == 'P' && firstPart[1] == 'X')
                     {
                         if (indices.Count < 4 ||
                             !int.TryParse(buffer.Slice(indices[1], indices[2] - indices[1] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var x) ||
                             !int.TryParse(buffer.Slice(indices[2], indices[3] - indices[2] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var y))
-                            throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
+                        {
+                            LogInvalidLine(endPoint, buffer, bufferPos);
+                            continue;
+                        }
 
                         if (indices.Count == 4) // PX 1337 1234\n
                         {
@@ -98,29 +113,25 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                                 continue;
                             }
 
-                            netstream.Write(Encoding.ASCII.GetBytes($"PX {x} {y} {pixels[pxIndex] | pixels[pxIndex + 1] << 8 | pixels[pxIndex + 2] << 16:X6}\n"));
+                            netstream.Write(Encoding.ASCII.GetBytes($"PX {x} {y} {pixelsBgr[pxIndex] | pixelsBgr[pxIndex + 1] << 8 | pixelsBgr[pxIndex + 2] << 16:X6}\n"));
                             Interlocked.Increment(ref _handledSentPixels);
                             continue;
                         }
-                        else if (indices.Count == 5) // PX 1337 1234 FF00FF\n
+                        else if (indices.Count == 5) // PX 1337 1234 FF00FF[AA]\n
                         {
                             var colorSpan = buffer.Slice(indices[3], indices[4] - indices[3] - 1);
-                            if (!uint.TryParse(colorSpan.Slice(0, 6), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint color))
+                            var hasAlpha = colorSpan.Length == 8;
+                            if (!uint.TryParse(colorSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint color))
                             {
-                                throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
+                                LogInvalidLine(endPoint, buffer, bufferPos);
+                                continue;
                             }
 
-                            byte alpha;
-                            if (colorSpan.Length == 8)
+                            byte alpha = 0xFF;
+                            if (hasAlpha)
                             {
-                                if (!byte.TryParse(colorSpan.Slice(6, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out alpha))
-                                {
-                                    throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
-                                }
-                            }
-                            else
-                            {
-                                alpha = 0xFF;
+                                alpha = (byte)(color & 0xFF);
+                                color >>= 8;
                             }
 
                             var xOut = offsetX + x;
@@ -129,14 +140,14 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             if (yOut < 0 || yOut >= height || xOut < 0 || xOut >= width)
                             {
 #if DEBUG
-                                _logger.LogWarning("Invalid coordinates from {EndPoint} at line {Line}", endPoint, new string(buffer.Slice(0, bufferPos)));
+                                _logger.LogDebug("Invalid coordinates from {EndPoint} at line {Line}", endPoint, new string(buffer.Slice(0, bufferPos)));
 #endif
                                 continue;
                             }
 
-                            byte r = (byte)(color & 0xFF);
+                            byte b = (byte)(color & 0xFF);
                             byte g = (byte)(color >> 8 & 0xFF);
-                            byte b = (byte)(color >> 16 & 0xFF);
+                            byte r = (byte)(color >> 16 & 0xFF);
 
                             var pixelIndex = (yOut * width + xOut) * bytesPerPixel;
 
@@ -145,26 +156,26 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             }
                             else if (alpha == 0xFF)
                             {
-                                pixels[pixelIndex] = r;
-                                pixels[pixelIndex + 1] = g;
-                                pixels[pixelIndex + 2] = b;
+                                pixelsBgr[pixelIndex] = b;
+                                pixelsBgr[pixelIndex + 1] = g;
+                                pixelsBgr[pixelIndex + 2] = r;
                             }
                             else
                             {
-                                var oldR = pixels[pixelIndex];
-                                var oldG = pixels[pixelIndex + 1];
-                                var oldB = pixels[pixelIndex + 2];
+                                var oldB = pixelsBgr[pixelIndex];
+                                var oldG = pixelsBgr[pixelIndex + 1];
+                                var oldR = pixelsBgr[pixelIndex + 2];
+
                                 var alphaFactor = alpha / 255.0;
 
-                                var newR = (byte)(oldR * (1 - alphaFactor) + r * alphaFactor);
-                                var newG = (byte)(oldG * (1 - alphaFactor) + g * alphaFactor);
                                 var newB = (byte)(oldB * (1 - alphaFactor) + b * alphaFactor);
+                                var newG = (byte)(oldG * (1 - alphaFactor) + g * alphaFactor);
+                                var newR = (byte)(oldR * (1 - alphaFactor) + r * alphaFactor);
 
-                                pixels[pixelIndex] = newR;
-                                pixels[pixelIndex + 1] = newG;
-                                pixels[pixelIndex + 2] = newB;
+                                pixelsBgr[pixelIndex] = newB;
+                                pixelsBgr[pixelIndex + 1] = newG;
+                                pixelsBgr[pixelIndex + 2] = newR;
                             }
-
 
                             if (frameReadySemaphore.CurrentCount == 0)
                             {
@@ -180,7 +191,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         }
                         else
                         {
-                            throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
+                            LogInvalidLine(endPoint, buffer, bufferPos);
+                            continue;
                         }
                     }
                     else
@@ -195,10 +207,18 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             if (indices.Count != 4 ||
                                 !int.TryParse(buffer.Slice(indices[1], indices[2] - indices[1] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var x) ||
                                 !int.TryParse(buffer.Slice(indices[2], indices[3] - indices[2] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var y))
-                                throw new InvalidOperationException($"Invalid Line: {new string(buffer.Slice(0, bufferPos))}");
+                            {
+                                LogInvalidLine(endPoint, buffer, bufferPos);
+                                continue;
+                            }
 
                             offsetX = x;
                             offsetY = y;
+                        }
+                        else
+                        {
+                            LogInvalidLine(endPoint, buffer, bufferPos);
+                            continue;
                         }
                     }
                 }
@@ -208,6 +228,12 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 if (timer != null)
                     timer.Dispose();
             }
+        }
+
+        private void LogInvalidLine(EndPoint endPoint, Span<char> buffer, int bufferPos)
+        {
+            var line = new string(buffer.Slice(0, bufferPos - 1)); // remove newline at end
+            _logger.LogInformation("Invalid Line from {EndPoint}: {Line}", endPoint, line);
         }
 
         private void FlushStats(object sender, System.Timers.ElapsedEventArgs e)
