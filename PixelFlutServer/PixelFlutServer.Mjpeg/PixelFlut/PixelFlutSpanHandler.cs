@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -40,7 +41,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             var pixelsBgr = pixelBuffer.Buffer;
 
             var buffer = new Span<char>(new char[1000]);
-            int bufferPos;
+            int bufferPos = 0;
             var stream = new BufferedStream(netstream, 1_000_000);
             var indices = new List<int>(16);
 
@@ -227,13 +228,28 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             {
                 if (timer != null)
                     timer.Dispose();
+                if (bufferPos > 0)
+                    _logger.LogInformation("Remaining Buffer: {RemainingBuffer}", FormatLine(buffer.Slice(0, bufferPos)));
             }
         }
 
         private void LogInvalidLine(EndPoint endPoint, Span<char> buffer, int bufferPos)
         {
-            var line = new string(buffer.Slice(0, bufferPos - 1)); // remove newline at end
-            _logger.LogInformation("Invalid Line from {EndPoint}: {Line}", endPoint, line);
+            _logger.LogInformation("Invalid Line from {EndPoint}: {Line}", endPoint, FormatLine(buffer.Slice(0, bufferPos)));
+        }
+
+        private string FormatLine(Span<char> lineSpan)
+        {
+            var chars = lineSpan.ToArray();
+            if (chars.Any(x => !char.IsWhiteSpace(x) && char.IsControl(x)))
+            {
+                return $"({string.Join(' ', chars.Select(x => ((byte)x).ToString("X2")))})";
+            }
+            else
+            {
+                var line = new string(lineSpan).TrimEnd(); // remove newline at end
+                return $"'{line}'";
+            }
         }
 
         private void FlushStats(object sender, System.Timers.ElapsedEventArgs e)
