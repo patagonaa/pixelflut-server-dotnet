@@ -9,6 +9,6 @@
         public int Height { get; set; } = 720;
         public int BytesPerPixel { get; } = 3;
         public int JpegQualityPercent { get; set; } = 70;
-        public string HttpServerUri { get; set; };
+        public string HttpServerUri { get; set; }
     }
 }
