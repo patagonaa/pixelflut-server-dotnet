@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NUnit.Framework;
+using PixelFlutServer.Mjpeg;
 using PixelFlutServer.Mjpeg.PixelFlut;
 using System;
 using System.Collections.Generic;
@@ -57,7 +59,7 @@ namespace PixelFlutServer.Tests
 
             var suts = new List<IPixelFlutHandler>
             {
-                new PixelFlutSpanHandler(NullLogger<PixelFlutSpanHandler>.Instance),
+                new PixelFlutSpanHandler(NullLogger<PixelFlutSpanHandler>.Instance, Options.Create(new PixelFlutServerConfig())),
                 new PixelFlutPipeHandler(NullLogger<PixelFlutSpanHandler>.Instance)
             };
 
@@ -88,7 +90,7 @@ namespace PixelFlutServer.Tests
             var suts = new List<IPixelFlutHandler>
             {
                 new PixelFlutSimpleHandler(NullLogger<PixelFlutSimpleHandler>.Instance),
-                new PixelFlutSpanHandler(NullLogger<PixelFlutSpanHandler>.Instance),
+                new PixelFlutSpanHandler(NullLogger<PixelFlutSpanHandler>.Instance, Options.Create(new PixelFlutServerConfig())),
                 new PixelFlutPipeHandler(NullLogger<PixelFlutSpanHandler>.Instance),
             };
 

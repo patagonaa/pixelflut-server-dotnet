@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Prometheus;
 using System;
 using System.Collections.Generic;
@@ -15,13 +16,15 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
     public class PixelFlutSpanHandler : IPixelFlutHandler
     {
         private readonly ILogger<PixelFlutSpanHandler> _logger;
+        private readonly PixelFlutServerConfig _serverConfig;
         private static readonly Counter _pixelRecvCounter = Metrics.CreateCounter("pixelflut_pixels_received", "Total number of received pixels");
         private static readonly Counter _pixelSentCounter = Metrics.CreateCounter("pixelflut_pixels_sent", "Total number of sent pixels");
         private static readonly Counter _byteCounter = Metrics.CreateCounter("pixelflut_bytes_received", "Total number of received bytes");
 
-        public PixelFlutSpanHandler(ILogger<PixelFlutSpanHandler> logger)
+        public PixelFlutSpanHandler(ILogger<PixelFlutSpanHandler> logger, IOptions<PixelFlutServerConfig> serverConfig)
         {
             _logger = logger;
+            _serverConfig = serverConfig.Value;
         }
 
         private ulong _handledRecvBytes = 0;
@@ -215,6 +218,21 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
                             offsetX = x;
                             offsetY = y;
+                        }
+                        else if (strFirstPart == "GET")
+                        {
+                            _logger.LogInformation("HTTP Request to Pixelflut Server from {EndPoint}: {Line}", endPoint, FormatLine(buffer.Slice(0, bufferPos)));
+
+                            if (!string.IsNullOrEmpty(_serverConfig.HttpServerUri))
+                            {
+                                netstream.Write(Encoding.ASCII.GetBytes($"HTTP/1.0 302 Moved Temporarily\r\nLocation: {_serverConfig.HttpServerUri}\r\n\r\n"));
+                            }
+                            else
+                            {
+                                netstream.Write(Encoding.ASCII.GetBytes("HTTP/1.0 400 Bad Request\r\n\r\nThis is not a HTTP Server, go away."));
+                            }
+                            bufferPos = 0; // clear remaining buffer
+                            return; // close connection
                         }
                         else
                         {
