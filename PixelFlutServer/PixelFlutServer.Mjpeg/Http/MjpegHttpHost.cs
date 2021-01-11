@@ -167,24 +167,34 @@ namespace PixelFlutServer.Mjpeg.Http
                         var cmd = sr.ReadLine();
                         if (cmd == null)
                             return;
+
+                        _logger.LogDebug(cmd);
                         var splitCmd = cmd.Split(' ');
 
-                        if (splitCmd[0] != "GET" || splitCmd[1] != "/")
-                            return;
-
-                        string headerLine;
-                        while ((headerLine = sr.ReadLine()) != "")
+                        if (splitCmd.Length != 3 || splitCmd[0] != "GET")
                         {
-                            if (headerLine.StartsWith("User-Agent: ", StringComparison.OrdinalIgnoreCase) ||
-                                headerLine.StartsWith("Referer: ", StringComparison.OrdinalIgnoreCase) ||
-                                headerLine.StartsWith("X-Forwarded-For: ", StringComparison.OrdinalIgnoreCase) ||
-                                headerLine.StartsWith("Host: ", StringComparison.OrdinalIgnoreCase))
-                                _logger.LogInformation(headerLine);
+                            _logger.LogInformation("Invalid HTTP Request: {Request}", cmd);
+                            await LogHeaders(sr);
+                            await sw.WriteLineAsync("HTTP/1.0 400 Bad Request");
+                            await sw.WriteLineAsync("");
+                            await sw.FlushAsync();
+                            return;
                         }
 
-                        sw.WriteLine("HTTP/1.1 200 OK");
-                        sw.WriteLine("Content-Type: multipart/x-mixed-replace;boundary=thisisaboundary");
-                        sw.WriteLine();
+                        if (splitCmd[1] != "/")
+                        {
+                            _logger.LogInformation("Invalid HTTP Request: {Request}", cmd);
+                            await LogHeaders(sr);
+                            await sw.WriteLineAsync("HTTP/1.0 404 Not Found");
+                            await sw.WriteLineAsync("");
+                            await sw.FlushAsync();
+                            return;
+                        }
+
+                        await LogHeaders(sr);
+                        await sw.WriteLineAsync("HTTP/1.1 200 OK");
+                        await sw.WriteLineAsync("Content-Type: multipart/x-mixed-replace;boundary=thisisaboundary");
+                        await sw.WriteLineAsync();
 
                         var first = true;
 
@@ -226,11 +236,30 @@ namespace PixelFlutServer.Mjpeg.Http
                 }
                 finally
                 {
-                    _logger.LogDebug("HTTP connection {Endpoint} closed!", connectionInfo.EndPoint);
+                    _logger.LogInformation("HTTP connection {Endpoint} closed!", connectionInfo.EndPoint);
                     lock (_connectionInfos)
                     {
                         _connectionInfos.Remove(connectionInfo);
                     }
+                }
+            }
+        }
+
+        private async Task LogHeaders(StreamReader sr)
+        {
+            string headerLine;
+            while (!string.IsNullOrEmpty(headerLine = await sr.ReadLineAsync()))
+            {
+                if (headerLine.StartsWith("User-Agent: ", StringComparison.OrdinalIgnoreCase) ||
+                    headerLine.StartsWith("Referer: ", StringComparison.OrdinalIgnoreCase) ||
+                    headerLine.StartsWith("X-Forwarded-For: ", StringComparison.OrdinalIgnoreCase) ||
+                    headerLine.StartsWith("Host: ", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation(headerLine);
+                }
+                else
+                {
+                    _logger.LogDebug(headerLine);
                 }
             }
         }
