@@ -178,53 +178,53 @@ namespace PixelFlutServer.Mjpeg.Http
                             await sw.WriteLineAsync("HTTP/1.0 400 Bad Request");
                             await sw.WriteLineAsync("");
                             await sw.FlushAsync();
-                            return;
                         }
-
-                        if (splitCmd[1] != "/")
+                        else if (splitCmd[1] != "/")
                         {
                             _logger.LogInformation("Invalid HTTP Request: {Request}", cmd);
                             await LogHeaders(sr);
                             await sw.WriteLineAsync("HTTP/1.0 404 Not Found");
                             await sw.WriteLineAsync("");
                             await sw.FlushAsync();
-                            return;
                         }
-
-                        await LogHeaders(sr);
-                        await sw.WriteLineAsync("HTTP/1.1 200 OK");
-                        await sw.WriteLineAsync("Content-Type: multipart/x-mixed-replace;boundary=thisisaboundary");
-                        await sw.WriteLineAsync();
-
-                        var first = true;
-
-                        while (!_cts.IsCancellationRequested)
+                        else
                         {
-                            // this makes sure the first frame is sent twice, workaround for chromium bug
-                            // https://bugs.chromium.org/p/chromium/issues/detail?id=527446
-                            if (first && _currentJpeg != null)
-                            {
-                                first = false;
-                            }
-                            else
-                            {
-                                await frameWaitSemaphore.WaitAsync();
-                            }
-
-                            var frame = _currentJpeg;
-
-                            await sw.WriteLineAsync("--thisisaboundary");
-                            await sw.WriteLineAsync("Content-Type: image/jpeg");
-                            await sw.WriteLineAsync($"Content-Length: {frame.Length}");
+                            await LogHeaders(sr);
+                            await sw.WriteLineAsync("HTTP/1.1 200 OK");
+                            await sw.WriteLineAsync("Content-Type: multipart/x-mixed-replace;boundary=thisisaboundary");
                             await sw.WriteLineAsync();
-                            await sw.FlushAsync();
 
-                            await stream.WriteAsync(frame);
+                            var first = true;
 
-                            await sw.WriteLineAsync();
-                            await sw.FlushAsync();
+                            while (!_cts.IsCancellationRequested)
+                            {
+                                // this makes sure the first frame is sent twice, workaround for chromium bug
+                                // https://bugs.chromium.org/p/chromium/issues/detail?id=527446
+                                if (first && _currentJpeg != null)
+                                {
+                                    first = false;
+                                }
+                                else
+                                {
+                                    await frameWaitSemaphore.WaitAsync();
+                                }
+
+                                var frame = _currentJpeg;
+
+                                await sw.WriteLineAsync("--thisisaboundary");
+                                await sw.WriteLineAsync("Content-Type: image/jpeg");
+                                await sw.WriteLineAsync($"Content-Length: {frame.Length}");
+                                await sw.WriteLineAsync();
+                                await sw.FlushAsync();
+
+                                await stream.WriteAsync(frame);
+
+                                await sw.WriteLineAsync();
+                                await sw.FlushAsync();
+                            }
                         }
                     }
+                    _logger.LogInformation("HTTP connection {Endpoint} closed!", connectionInfo.EndPoint);
                 }
                 catch (IOException iex) when (iex.GetBaseException() is SocketException sex)
                 {
@@ -236,7 +236,7 @@ namespace PixelFlutServer.Mjpeg.Http
                 }
                 finally
                 {
-                    _logger.LogInformation("HTTP connection {Endpoint} closed!", connectionInfo.EndPoint);
+                    _logger.LogDebug("HTTP connection {Endpoint} closed!", connectionInfo.EndPoint);
                     lock (_connectionInfos)
                     {
                         _connectionInfos.Remove(connectionInfo);
