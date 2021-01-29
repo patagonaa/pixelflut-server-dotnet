@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Prometheus;
@@ -16,7 +17,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
     {
         private readonly TcpListener _listener;
         private readonly ILogger<PixelFlutHost> _logger;
-        private readonly IPixelFlutHandler _pixelFlutHandler;
+        private readonly IServiceProvider _serviceProvider;
         private readonly int _frameMs;
         private readonly int _width;
         private readonly int _height;
@@ -27,13 +28,13 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private IList<PixelFlutConnectionInfo> _connectionInfos = new List<PixelFlutConnectionInfo>();
         private readonly Gauge _connectionCounter = Metrics.CreateGauge("pixelflut_connections", "Number of Pixelflut connections");
 
-        public PixelFlutHost(ILogger<PixelFlutHost> logger, IPixelFlutHandler pixelFlutHandler, IOptions<PixelFlutServerConfig> options)
+        public PixelFlutHost(ILogger<PixelFlutHost> logger, IServiceProvider serviceProvider, IOptions<PixelFlutServerConfig> options)
         {
             var config = options.Value;
 
             _listener = TcpListener.Create(config.PixelFlutPort);
             _logger = logger;
-            _pixelFlutHandler = pixelFlutHandler;
+            _serviceProvider = serviceProvider;
 
             _frameMs = (int)(1000.0 / config.MaxFps);
 
@@ -101,6 +102,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
         private async void ConnectionHandler(TcpClient client)
         {
+            var pixelFlutHandler = _serviceProvider.GetRequiredService<IPixelFlutHandler>();
+
             using (client)
             {
                 client.ReceiveTimeout = 30000;
@@ -123,7 +126,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                     };
                     using (var stream = client.GetStream())
                     {
-                        await _pixelFlutHandler.Handle(stream, connectionInfo.EndPoint, buffer, _frameSemaphore, _cts.Token);
+                        await pixelFlutHandler.Handle(stream, connectionInfo.EndPoint, buffer, _frameSemaphore, _cts.Token);
                     }
                     _logger.LogInformation("PixelFlut connection {Endpoint} closed!", connectionInfo.EndPoint);
                 }
