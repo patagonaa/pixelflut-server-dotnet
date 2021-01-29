@@ -1,5 +1,5 @@
 # pixelflut-server-dotnet
-This is a Pixelflut (see [here](https://github.com/defnull/pixelflut) or [here](https://cccgoe.de/wiki/Pixelflut) for details) server written in C# taking advantage of the relatively new performance-focused C# 7.2 feature `Span<T>` to reduce memory allocations during handling of Pixelflut traffic. On my system (i7-7820HQ, 32GB DDR4-2400) it is able to handle about 1 GBit/s per connection/thread.
+This is a Pixelflut (see [here](https://github.com/defnull/pixelflut) or [here](https://cccgoe.de/wiki/Pixelflut) for details) server written in C# taking advantage of the relatively new performance-focused C# 7.2 feature `Span<T>` to reduce memory allocations during handling of Pixelflut traffic. On my system (i7-7820HQ, 32GB DDR4-2400) it is able to handle about 1 GBit/s per connection/thread (4-5 GBit/s total).
 
 ## Features
 - Supported commands:
