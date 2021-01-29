@@ -48,7 +48,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
                 Span<char> buffer = stackalloc char[1000];
                 int bufferPos = 0;
-                var stream = new BufferedStream(netstream, 1_000_000);
+                var stream = new StreamBufferWrapper(netstream, 1_048_576);
                 var indicesCount = 0;
                 var indices = new int[16];
 
@@ -283,6 +283,38 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             _pixelRecvCounter.Inc(recvPixels);
             var sentPixels = Interlocked.Exchange(ref _handledSentPixels, 0);
             _pixelSentCounter.Inc(sentPixels);
+        }
+
+        private class StreamBufferWrapper
+        {
+            private readonly Stream _stream;
+            private readonly byte[] _buffer;
+            private readonly int _bufferSize;
+            private int _bufferPos;
+            private int _bufferRemaining;
+
+            public StreamBufferWrapper(Stream stream, int bufferSize)
+            {
+                _stream = stream;
+                _buffer = new byte[bufferSize];
+                _bufferSize = bufferSize;
+                _bufferPos = 0;
+                _bufferRemaining = 0;
+            }
+
+            public int ReadByte()
+            {
+                if (_bufferRemaining == 0)
+                {
+                    _bufferRemaining = _stream.Read(_buffer, 0, _bufferSize);
+                    if (_bufferRemaining == 0)
+                        return -1;
+                    _bufferPos = 0;
+                }
+
+                _bufferRemaining--;
+                return _buffer[_bufferPos++];
+            }
         }
     }
 }
