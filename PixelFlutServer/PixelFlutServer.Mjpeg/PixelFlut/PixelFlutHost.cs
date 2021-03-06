@@ -15,6 +15,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 {
     class PixelFlutHost : IHostedService
     {
+        private readonly PixelFlutServerConfig _config;
         private readonly TcpListener _listener;
         private readonly ILogger<PixelFlutHost> _logger;
         private readonly IServiceProvider _serviceProvider;
@@ -31,6 +32,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         public PixelFlutHost(ILogger<PixelFlutHost> logger, IServiceProvider serviceProvider, IOptions<PixelFlutServerConfig> options)
         {
             var config = options.Value;
+            _config = config;
 
             _listener = TcpListener.Create(config.PixelFlutPort);
             _logger = logger;
@@ -47,10 +49,13 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
+            LoadImage();
+
             _listener.Start();
             Task.Factory.StartNew(() => PublishFrameWorker(), TaskCreationOptions.LongRunning);
             Task.Factory.StartNew(() => ConnectionAcceptWorker(), TaskCreationOptions.LongRunning);
             Task.Factory.StartNew(() => PrintStatsWorker(), TaskCreationOptions.LongRunning);
+            Task.Factory.StartNew(() => SaveImageWorker(), TaskCreationOptions.LongRunning);
             return Task.CompletedTask;
         }
 
@@ -58,7 +63,44 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         {
             _listener.Stop();
             _cts.Cancel();
+
+            SaveImage();
             return Task.CompletedTask;
+        }
+
+        private void LoadImage()
+        {
+            var path = Path.Combine(_config.PersistPath, "image.raw");
+            if (File.Exists(path))
+            {
+                var fileBytes = File.ReadAllBytes(path);
+                if (fileBytes.Length == _pixels.Length)
+                    Array.Copy(fileBytes, _pixels, fileBytes.Length);
+            }
+        }
+
+        private void SaveImage()
+        {
+            Directory.CreateDirectory(_config.PersistPath);
+            var path = Path.Combine(_config.PersistPath, "image.raw");
+            File.WriteAllBytes(path, _pixels);
+        }
+
+        private async Task SaveImageWorker()
+        {
+            while (!_cts.IsCancellationRequested)
+            {
+                try
+                {
+                    SaveImage();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error while saving image");
+                }
+
+                await Task.Delay(TimeSpan.FromMinutes(5));
+            }
         }
 
         private async Task PrintStatsWorker()
