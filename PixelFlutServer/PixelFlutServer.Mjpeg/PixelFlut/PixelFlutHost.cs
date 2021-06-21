@@ -28,6 +28,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private static SemaphoreSlim _frameSemaphore = new SemaphoreSlim(1, 1);
         private IList<PixelFlutConnectionInfo> _connectionInfos = new List<PixelFlutConnectionInfo>();
         private readonly Gauge _connectionCounter = Metrics.CreateGauge("pixelflut_connections", "Number of Pixelflut connections");
+        private readonly Counter _connectionCounterTotal = Metrics.CreateCounter("pixelflut_connections_total", "Number of Pixelflut connections since this instance started");
 
         public PixelFlutHost(ILogger<PixelFlutHost> logger, IServiceProvider serviceProvider, IOptions<PixelFlutServerConfig> options)
         {
@@ -156,6 +157,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 {
                     _connectionInfos.Add(connectionInfo);
                 }
+                _connectionCounterTotal.Inc();
 
                 try
                 {

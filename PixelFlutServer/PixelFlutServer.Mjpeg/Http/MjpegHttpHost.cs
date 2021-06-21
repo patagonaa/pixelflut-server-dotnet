@@ -28,6 +28,7 @@ namespace PixelFlutServer.Mjpeg.Http
         private readonly int _bytesPerPixel;
         private readonly IList<MjpegConnectionInfo> _connectionInfos = new List<MjpegConnectionInfo>();
         private readonly Gauge _connectionCounter = Metrics.CreateGauge("mjpeg_http_connections", "Number of MJPEG HTTP connections");
+        private readonly Counter _connectionCounterTotal = Metrics.CreateCounter("mjpeg_http_connections_total", "Number of MJPEG HTTP connections since this instance started");
 
         public MjpegHttpHost(ILogger<MjpegHttpHost> logger, IOptions<PixelFlutServerConfig> options)
         {
@@ -150,6 +151,7 @@ namespace PixelFlutServer.Mjpeg.Http
                 {
                     _connectionInfos.Add(connectionInfo);
                 }
+                _connectionCounterTotal.Inc();
 
                 var frameWaitSemaphore = connectionInfo.FrameWaitSemaphore;
 
