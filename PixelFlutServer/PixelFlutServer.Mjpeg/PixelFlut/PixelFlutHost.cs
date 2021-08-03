@@ -48,43 +48,43 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             _pixels = new byte[_width * _height * _bytesPerPixel];
         }
 
-        public Task StartAsync(CancellationToken cancellationToken)
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
-            LoadImage();
+            await LoadImage();
 
             _listener.Start();
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             Task.Factory.StartNew(() => PublishFrameWorker(), TaskCreationOptions.LongRunning);
             Task.Factory.StartNew(() => ConnectionAcceptWorker(), TaskCreationOptions.LongRunning);
             Task.Factory.StartNew(() => PrintStatsWorker(), TaskCreationOptions.LongRunning);
             Task.Factory.StartNew(() => SaveImageWorker(), TaskCreationOptions.LongRunning);
-            return Task.CompletedTask;
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
             _listener.Stop();
             _cts.Cancel();
 
-            SaveImage();
-            return Task.CompletedTask;
+            await SaveImage();
         }
 
-        private void LoadImage()
+        private async Task LoadImage()
         {
             var path = Path.Combine(_config.PersistPath, "image.raw");
             if (File.Exists(path))
             {
-                var fileBytes = File.ReadAllBytes(path);
+                var fileBytes = await File.ReadAllBytesAsync(path);
                 if (fileBytes.Length == _pixels.Length)
                     Array.Copy(fileBytes, _pixels, fileBytes.Length);
             }
         }
 
-        private void SaveImage()
+        private async Task SaveImage()
         {
             Directory.CreateDirectory(_config.PersistPath);
             var path = Path.Combine(_config.PersistPath, "image.raw");
-            File.WriteAllBytes(path, _pixels);
+            await File.WriteAllBytesAsync(path, _pixels);
         }
 
         private async Task SaveImageWorker()
@@ -93,7 +93,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             {
                 try
                 {
-                    SaveImage();
+                    await SaveImage();
                 }
                 catch (Exception ex)
                 {

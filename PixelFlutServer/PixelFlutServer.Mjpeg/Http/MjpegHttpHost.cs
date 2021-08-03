@@ -17,10 +17,11 @@ namespace PixelFlutServer.Mjpeg.Http
 {
     class MjpegHttpHost : IHostedService
     {
+        private const string _boundaryString = "thisisaboundary";
         private readonly PixelFlutServerConfig _config;
         private readonly TcpListener _listener;
         private readonly ILogger<MjpegHttpHost> _logger;
-        private CancellationTokenSource _cts = new();
+        private readonly CancellationTokenSource _cts = new();
         private byte[] _currentJpeg = null;
 
         private readonly int _width;
@@ -80,22 +81,23 @@ namespace PixelFlutServer.Mjpeg.Http
                 using (var ms = new MemoryStream())
                 {
                     var encoder = ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
-                    var encParams = new EncoderParameters() { Param = new[] { new EncoderParameter(Encoder.Quality, (long)_config.JpegQualityPercent) } };
+                    long quality = _config.JpegQualityPercent;
+                    var encParams = new EncoderParameters { Param = new[] { new EncoderParameter(Encoder.Quality, quality) } };
 
                     while (!_cts.IsCancellationRequested)
                     {
                         byte[] frame = null;
 
                         // send frame every now and then even if there's no new one available to give the TcpClient a chance to clean up old connections
-                        using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+                        try
                         {
-                            try
-                            {
-                                frame = await FrameHub.WaitForFrame(CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, timeoutCts.Token).Token);
-                            }
-                            catch (OperationCanceledException)
-                            {
-                            }
+                            frame = await FrameHub.WaitForFrame(_cts.Token, 10000);
+                        }
+                        catch (TimeoutException)
+                        {
+                        }
+                        catch (OperationCanceledException)
+                        {
                         }
 
                         if (frame != null)
@@ -193,7 +195,8 @@ namespace PixelFlutServer.Mjpeg.Http
                         {
                             await LogHeaders(sr);
                             await sw.WriteLineAsync("HTTP/1.1 200 OK");
-                            await sw.WriteLineAsync("Content-Type: multipart/x-mixed-replace;boundary=thisisaboundary");
+
+                            await sw.WriteLineAsync($"Content-Type: multipart/x-mixed-replace;boundary={_boundaryString}");
                             await sw.WriteLineAsync();
 
                             var first = true;
@@ -213,7 +216,7 @@ namespace PixelFlutServer.Mjpeg.Http
 
                                 var frame = _currentJpeg;
 
-                                await sw.WriteLineAsync("--thisisaboundary");
+                                await sw.WriteLineAsync($"--{_boundaryString}");
                                 await sw.WriteLineAsync("Content-Type: image/jpeg");
                                 await sw.WriteLineAsync($"Content-Length: {frame.Length}");
                                 await sw.WriteLineAsync();

@@ -9,9 +9,12 @@ namespace PixelFlutServer.Mjpeg
         private static byte[] _currentFrame = null;
         private static SemaphoreSlim _frameSemaphore = new SemaphoreSlim(0, 1);
 
-        public static async Task<byte[]> WaitForFrame(CancellationToken token)
+        public static async Task<byte[]> WaitForFrame(CancellationToken token, int timeoutMs)
         {
-            await _frameSemaphore.WaitAsync(token);
+            if(!await _frameSemaphore.WaitAsync(timeoutMs, token))
+            {
+                throw new TimeoutException();
+            }
             return _currentFrame;
         }
 
