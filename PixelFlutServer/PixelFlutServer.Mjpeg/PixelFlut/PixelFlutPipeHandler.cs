@@ -59,7 +59,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                ReadResult result = await reader.ReadAsync();
+                ReadResult result = await reader.ReadAsync(cancellationToken);
                 ReadOnlySequence<byte> buffer = result.Buffer;
                 while (TryReadLine(ref buffer, encoding, new Span<char>(charBuffer), out int writtenChars))
                 {

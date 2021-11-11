@@ -59,7 +59,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 try
                 {
                     timer.Elapsed += FlushStats;
-                    timer.Interval = 5000;
+                    timer.Interval = 500;
                     timer.AutoReset = true;
                     timer.Start();
 
@@ -283,6 +283,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             _pixelRecvCounter.Inc(recvPixels);
             var sentPixels = Interlocked.Exchange(ref _handledSentPixels, 0);
             _pixelSentCounter.Inc(sentPixels);
+
+            StatsHub.Increment(handledBytes, recvPixels, sentPixels);
         }
 
         private class StreamBufferWrapper

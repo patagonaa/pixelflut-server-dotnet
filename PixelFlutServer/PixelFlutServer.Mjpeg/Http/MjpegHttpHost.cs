@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using Prometheus;
 using System;
 using System.Collections.Generic;
@@ -8,8 +9,11 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,7 +23,7 @@ namespace PixelFlutServer.Mjpeg.Http
     {
         private const string _boundaryString = "thisisaboundary";
         private readonly PixelFlutServerConfig _config;
-        private readonly TcpListener _listener;
+        private readonly HttpListener _listener;
         private readonly ILogger<MjpegHttpHost> _logger;
         private readonly CancellationTokenSource _cts = new();
         private byte[] _currentJpeg = null;
@@ -27,7 +31,7 @@ namespace PixelFlutServer.Mjpeg.Http
         private readonly int _width;
         private readonly int _height;
         private readonly int _bytesPerPixel;
-        private readonly IList<MjpegConnectionInfo> _connectionInfos = new List<MjpegConnectionInfo>();
+        private readonly IList<MjpegConnectionInfo> _mjpegConnectionInfos = new List<MjpegConnectionInfo>();
         private readonly Gauge _connectionCounter = Metrics.CreateGauge("mjpeg_http_connections", "Number of MJPEG HTTP connections");
         private readonly Counter _connectionCounterTotal = Metrics.CreateCounter("mjpeg_http_connections_total", "Number of MJPEG HTTP connections since this instance started");
 
@@ -35,7 +39,8 @@ namespace PixelFlutServer.Mjpeg.Http
         {
             _config = options.Value;
 
-            _listener = TcpListener.Create(_config.MjpegPort);
+            _listener = new HttpListener();
+            _listener.Prefixes.Add($"http://+:{_config.MjpegPort}/");
             _logger = logger;
 
             _width = _config.Width;
@@ -64,9 +69,9 @@ namespace PixelFlutServer.Mjpeg.Http
             while (!_cts.IsCancellationRequested)
             {
                 int connectionCount;
-                lock (_connectionInfos)
+                lock (_mjpegConnectionInfos)
                 {
-                    connectionCount = _connectionInfos.Count;
+                    connectionCount = _mjpegConnectionInfos.Count;
                 }
                 _connectionCounter.Set(connectionCount);
                 _logger.LogDebug("HTTP Connections: {ConnectionCount}", connectionCount);
@@ -82,7 +87,7 @@ namespace PixelFlutServer.Mjpeg.Http
                 {
                     var encoder = ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
                     long quality = _config.JpegQualityPercent;
-                    var encParams = new EncoderParameters { Param = new[] { new EncoderParameter(Encoder.Quality, quality) } };
+                    var encParams = new EncoderParameters { Param = new[] { new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality) } };
 
                     while (!_cts.IsCancellationRequested)
                     {
@@ -111,9 +116,9 @@ namespace PixelFlutServer.Mjpeg.Http
                             bitmap.Save(ms, encoder, encParams);
                             _currentJpeg = ms.ToArray();
                         }
-                        lock (_connectionInfos)
+                        lock (_mjpegConnectionInfos)
                         {
-                            foreach (var info in _connectionInfos)
+                            foreach (var info in _mjpegConnectionInfos)
                             {
                                 var semaphore = info.FrameWaitSemaphore;
                                 try
@@ -135,117 +140,112 @@ namespace PixelFlutServer.Mjpeg.Http
         {
             while (!_cts.IsCancellationRequested)
             {
-                var client = await _listener.AcceptTcpClientAsync();
-                _ = Task.Factory.StartNew(() => ConnectionHandler(client), TaskCreationOptions.LongRunning);
+                var context = await _listener.GetContextAsync();
+                _ = Task.Factory.StartNew(() => ConnectionHandler(context), TaskCreationOptions.LongRunning);
             }
         }
 
-        public async void ConnectionHandler(TcpClient client)
+        private async Task ConnectionHandler(HttpListenerContext context)
         {
-            using (client)
+            try
             {
-                client.ReceiveTimeout = 30000;
-                client.SendTimeout = 30000;
-
-                var connectionInfo = new MjpegConnectionInfo { EndPoint = client.Client.RemoteEndPoint, FrameWaitSemaphore = new SemaphoreSlim(0, 1) };
-                _logger.LogInformation("HTTP Connection from {Endpoint}", connectionInfo.EndPoint);
-                lock (_connectionInfos)
+                _logger.LogInformation("HTTP Connection from {Endpoint}: {HttpMethod} {Path}", context.Request.RemoteEndPoint, context.Request.HttpMethod, context.Request.Url.LocalPath);
+                switch (context.Request.Url.LocalPath)
                 {
-                    _connectionInfos.Add(connectionInfo);
-                }
-                _connectionCounterTotal.Inc();
-
-                var frameWaitSemaphore = connectionInfo.FrameWaitSemaphore;
-
-                // output frame once at the start so the user can see something even when there's nothing currently flooding
-                if (_currentJpeg != null)
-                    frameWaitSemaphore.Release();
-                try
-                {
-                    using (var stream = client.GetStream())
-                    {
-                        var sr = new StreamReader(stream);
-                        var sw = new StreamWriter(stream);
-                        sw.NewLine = "\r\n";
-
-                        var cmd = sr.ReadLine();
-                        if (cmd == null)
-                            return;
-
-                        _logger.LogDebug(cmd);
-                        var splitCmd = cmd.Split(' ');
-
-                        if (splitCmd.Length != 3 || splitCmd[0] != "GET")
+                    case "/stream.jpg":
+                        await ConnectionHandlerMJpeg(context);
+                        break;
+                    case "/":
                         {
-                            _logger.LogInformation("Invalid HTTP Request: {Request}", cmd);
-                            await LogHeaders(sr);
-                            await sw.WriteLineAsync("HTTP/1.0 400 Bad Request");
-                            await sw.WriteLineAsync("");
-                            await sw.FlushAsync();
+                            context.Response.StatusCode = 404;
+                            context.Response.ContentType = "text/html";
+                            using var outputStream = context.Response.OutputStream;
+                            using (var htmlStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("PixelFlutServer.Mjpeg.Http.index.html"))
+                            {
+                                await htmlStream.CopyToAsync(outputStream);
+                            }
                         }
-                        else if (splitCmd[1] != "/")
+                        break;
+                    case "/stats.json":
                         {
-                            _logger.LogInformation("Invalid HTTP Request: {Request}", cmd);
-                            await LogHeaders(sr);
-                            await sw.WriteLineAsync("HTTP/1.0 404 Not Found");
-                            await sw.WriteLineAsync("");
-                            await sw.FlushAsync();
+                            context.Response.ContentType = "application/json";
+                            using var outputStream = context.Response.OutputStream;
+                            await outputStream.WriteAsync(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(StatsHub.GetStats())));
+                        }
+                        break;
+                    default:
+                        {
+                            context.Response.StatusCode = 404;
+                            using var outputStream = context.Response.OutputStream;
+                            await outputStream.WriteAsync(Encoding.UTF8.GetBytes("<h1>Not Found</h1>"));
+                        }
+                        break;
+                }
+                _logger.LogInformation("HTTP connection {Endpoint} closed!", context.Request.RemoteEndPoint);
+            }
+            catch (IOException iex) when (iex.GetBaseException() is SocketException sex)
+            {
+                _logger.LogInformation("HTTP connection {Endpoint} closed: SocketError {SocketErrorCode} / Error {ErrorCode}", context.Request.RemoteEndPoint, sex.SocketErrorCode, sex.ErrorCode);
+            }
+            catch (HttpListenerException lex)
+            {
+                _logger.LogInformation("HTTP connection {Endpoint} closed: Error {ErrorCode}", context.Request.RemoteEndPoint, lex.ErrorCode);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Something went wrong at HTTP connection {Endpoint}", context.Request.RemoteEndPoint);
+            }
+        }
+        private async Task ConnectionHandlerMJpeg(HttpListenerContext context)
+        {
+            var connectionInfo = new MjpegConnectionInfo { EndPoint = context.Request.RemoteEndPoint, FrameWaitSemaphore = new SemaphoreSlim(0, 1) };
+
+            lock (_mjpegConnectionInfos)
+            {
+                _mjpegConnectionInfos.Add(connectionInfo);
+            }
+            _connectionCounterTotal.Inc();
+
+            var frameWaitSemaphore = connectionInfo.FrameWaitSemaphore;
+
+            // output frame once at the start so the user can see something even when there's nothing currently flooding
+            if (_currentJpeg != null)
+                frameWaitSemaphore.Release();
+            try
+            {
+                context.Response.ContentType = "multipart/x-mixed-replace;boundary=" + _boundaryString;
+                context.Response.SendChunked = true;
+                using (var stream = context.Response.OutputStream)
+                {
+                    var first = true;
+
+                    while (!_cts.IsCancellationRequested)
+                    {
+                        // this makes sure the first frame is sent twice, workaround for chromium bug
+                        // https://bugs.chromium.org/p/chromium/issues/detail?id=527446
+                        if (first && _currentJpeg != null)
+                        {
+                            first = false;
                         }
                         else
                         {
-                            await LogHeaders(sr);
-                            await sw.WriteLineAsync("HTTP/1.1 200 OK");
-
-                            await sw.WriteLineAsync($"Content-Type: multipart/x-mixed-replace;boundary={_boundaryString}");
-                            await sw.WriteLineAsync();
-
-                            var first = true;
-
-                            while (!_cts.IsCancellationRequested)
-                            {
-                                // this makes sure the first frame is sent twice, workaround for chromium bug
-                                // https://bugs.chromium.org/p/chromium/issues/detail?id=527446
-                                if (first && _currentJpeg != null)
-                                {
-                                    first = false;
-                                }
-                                else
-                                {
-                                    await frameWaitSemaphore.WaitAsync();
-                                }
-
-                                var frame = _currentJpeg;
-
-                                await sw.WriteLineAsync($"--{_boundaryString}");
-                                await sw.WriteLineAsync("Content-Type: image/jpeg");
-                                await sw.WriteLineAsync($"Content-Length: {frame.Length}");
-                                await sw.WriteLineAsync();
-                                await sw.FlushAsync();
-
-                                await stream.WriteAsync(frame);
-
-                                await sw.WriteLineAsync();
-                                await sw.FlushAsync();
-                            }
+                            await frameWaitSemaphore.WaitAsync();
                         }
+
+                        var frame = _currentJpeg;
+
+                        await stream.WriteAsync(Encoding.UTF8.GetBytes($"--{_boundaryString}\r\nContent-Type: image/jpeg\r\nContent-Length: {frame.Length}\r\n\r\n"));
+                        await stream.WriteAsync(frame);
+                        await stream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"));
+                        await stream.FlushAsync();
                     }
-                    _logger.LogInformation("HTTP connection {Endpoint} closed!", connectionInfo.EndPoint);
                 }
-                catch (IOException iex) when (iex.GetBaseException() is SocketException sex)
+            }
+            finally
+            {
+                lock (_mjpegConnectionInfos)
                 {
-                    _logger.LogInformation("HTTP connection {Endpoint} closed: {SocketErrorCode} / {ErrorCode}", connectionInfo.EndPoint, sex.SocketErrorCode, sex.ErrorCode);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Something went wrong at HTTP connection {Endpoint}", connectionInfo.EndPoint);
-                }
-                finally
-                {
-                    _logger.LogDebug("HTTP connection {Endpoint} closed!", connectionInfo.EndPoint);
-                    lock (_connectionInfos)
-                    {
-                        _connectionInfos.Remove(connectionInfo);
-                    }
+                    _mjpegConnectionInfos.Remove(connectionInfo);
                 }
             }
         }

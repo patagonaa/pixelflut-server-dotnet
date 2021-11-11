@@ -1,0 +1,83 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>PixelFlut!</title>
+    <script>
+        class StatsHandler {
+            constructor(element) {
+                this.element = element;
+            }
+
+            async getStats() {
+                let request = await fetch('stats.json');
+                return await request.json();
+            }
+
+            async updateStats() {
+                let stats = await this.getStats();
+                let time = Date.now();
+
+                let intervalSeconds = (time - this.lastStatsTime) / 1000;
+                this.element.innerHTML = `
+<table border="1" cellpadding="5">
+    <tr>
+        <th></th>
+        <th>total</th>
+        <th>per second</th>
+    </tr>
+    <tr>
+        <td>bytes received</td>
+        <td>${this.formatNumber(stats.ReceivedBytes)}</td>
+        <td>${this.formatNumber((stats.ReceivedBytes - this.lastStats?.ReceivedBytes) / intervalSeconds)}</td>
+    </tr>
+    <tr>
+        <td>pixels received</td>
+        <td>${this.formatNumber(stats.ReceivedPixels)}</td>
+        <td>${this.formatNumber((stats.ReceivedPixels - this.lastStats?.ReceivedPixels) / intervalSeconds)}</td>
+    </tr>
+    <tr>
+        <td>pixels sent</td>
+        <td>${this.formatNumber(stats.SentPixels)}</td>
+        <td>${this.formatNumber((stats.SentPixels - this.lastStats?.SentPixels) / intervalSeconds)}</td>
+    </tr>
+</table>
+`;
+
+                this.lastStats = stats;
+                this.lastStatsTime = time;
+            }
+
+            formatNumber(bytes) {
+                if (isNaN(bytes)) {
+                    return '?';
+                }
+                if (bytes > 1024 * 1024 * 1024) {
+                    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + 'G';
+                } else if (bytes > 1024 * 1024) {
+                    return (bytes / (1024 * 1024)).toFixed(2) + 'M';
+                } else if (bytes > 1024) {
+                    return (bytes / (1024)).toFixed(2) + 'K';
+                } else {
+                    return bytes.toFixed(0);
+                }
+            }
+
+            start() {
+                this.updateStats()
+                setInterval(() => this.updateStats(), 1000);
+            }
+        }
+
+        window.onload = () => {
+            let handler = new StatsHandler(document.getElementById('stats'));
+            handler.start();
+        };
+    </script>
+</head>
+<body>
+    <img src="stream.jpg" /><br/>
+    <div id="stats"></div>
+</body>
+</html>
