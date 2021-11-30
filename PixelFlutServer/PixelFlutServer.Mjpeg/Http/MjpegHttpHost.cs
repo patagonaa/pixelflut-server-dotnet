@@ -145,7 +145,11 @@ namespace PixelFlutServer.Mjpeg.Http
             {
                 try
                 {
-                    _logger.LogInformation("HTTP Connection from {Endpoint}: {HttpMethod} {Path}", context.Request.RemoteEndPoint, context.Request.HttpMethod, context.Request.Url.LocalPath);
+                    var forwardedFor = context.Request.Headers.Get("X-Forwarded-For");
+
+                    var endPointForLog = forwardedFor == null ? context.Request.RemoteEndPoint.ToString() : $"{context.Request.RemoteEndPoint} ({forwardedFor})";
+                    
+                    _logger.LogInformation("HTTP Connection from {Endpoint}: {HttpMethod} {Path}", endPointForLog, context.Request.HttpMethod, context.Request.Url.LocalPath);
                     switch (context.Request.Url.LocalPath)
                     {
                         case streamEndpoint:
