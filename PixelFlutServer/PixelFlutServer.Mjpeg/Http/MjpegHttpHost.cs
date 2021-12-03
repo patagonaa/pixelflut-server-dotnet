@@ -145,11 +145,8 @@ namespace PixelFlutServer.Mjpeg.Http
             {
                 try
                 {
-                    var forwardedFor = context.Request.Headers.Get("X-Forwarded-For");
-
-                    var endPointForLog = forwardedFor == null ? context.Request.RemoteEndPoint.ToString() : $"{context.Request.RemoteEndPoint} ({forwardedFor})";
-                    
-                    _logger.LogInformation("HTTP Connection from {Endpoint}: {HttpMethod} {Path}", endPointForLog, context.Request.HttpMethod, context.Request.Url.LocalPath);
+                    _logger.LogInformation("HTTP Connection from {Endpoint}: {HttpMethod} {Path}", context.Request.RemoteEndPoint, context.Request.HttpMethod, context.Request.Url.LocalPath);
+                    LogHeaders(context.Request);
                     switch (context.Request.Url.LocalPath)
                     {
                         case streamEndpoint:
@@ -249,21 +246,19 @@ namespace PixelFlutServer.Mjpeg.Http
             }
         }
 
-        private async Task LogHeaders(StreamReader sr)
+        private void LogHeaders(HttpListenerRequest request)
         {
-            string headerLine;
-            while (!string.IsNullOrEmpty(headerLine = await sr.ReadLineAsync()))
+            var headersToLog = new[] { "User-Agent", "Referer", "X-Forwarded-For", "Host" };
+            foreach (var headerKey in request.Headers.AllKeys)
             {
-                if (headerLine.StartsWith("User-Agent: ", StringComparison.OrdinalIgnoreCase) ||
-                    headerLine.StartsWith("Referer: ", StringComparison.OrdinalIgnoreCase) ||
-                    headerLine.StartsWith("X-Forwarded-For: ", StringComparison.OrdinalIgnoreCase) ||
-                    headerLine.StartsWith("Host: ", StringComparison.OrdinalIgnoreCase))
+                var headerValue = request.Headers[headerKey];
+                if (headersToLog.Any(x => headerKey.Equals(x, StringComparison.OrdinalIgnoreCase)))
                 {
-                    _logger.LogInformation(headerLine);
+                    _logger.LogInformation("{HeaderKey}: {HeaderValue}", headerKey, headerValue);
                 }
                 else
                 {
-                    _logger.LogDebug(headerLine);
+                    _logger.LogDebug("{HeaderKey}: {HeaderValue}", headerKey, headerValue);
                 }
             }
         }
