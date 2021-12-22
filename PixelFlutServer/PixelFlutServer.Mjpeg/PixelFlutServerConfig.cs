@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace PixelFlutServer.Mjpeg
+﻿namespace PixelFlutServer.Mjpeg
 {
     public class PixelFlutServerConfig
     {
@@ -13,5 +11,7 @@ namespace PixelFlutServer.Mjpeg
         public int JpegQualityPercent { get; set; } = 70;
         public string HttpServerUri { get; set; }
         public string PersistPath { get; set; } = ".";
+        public string AdditionalText { get; set; }
+        public int AdditionalTextSize { get; set; } = 14;
     }
 }

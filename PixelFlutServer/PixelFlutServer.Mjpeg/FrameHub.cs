@@ -1,17 +1,16 @@
 ﻿using System;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace PixelFlutServer.Mjpeg
 {
     public static class FrameHub
     {
         private static byte[] _currentFrame = null;
-        private static SemaphoreSlim _frameSemaphore = new SemaphoreSlim(0, 1);
+        private static readonly SemaphoreSlim _frameSemaphore = new SemaphoreSlim(0, 1);
 
-        public static async Task<byte[]> WaitForFrame(CancellationToken token, int timeoutMs)
+        public static byte[] WaitForFrame(CancellationToken token, int timeoutMs)
         {
-            if(!await _frameSemaphore.WaitAsync(timeoutMs, token))
+            if(!_frameSemaphore.Wait(timeoutMs, token))
             {
                 throw new TimeoutException();
             }

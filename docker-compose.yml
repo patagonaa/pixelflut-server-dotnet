@@ -9,6 +9,7 @@ services:
       - "Height=720"
       - "JpegQualityPercent=70"
       - "PersistPath=/var/lib/pixelflut"
+      - "AdditionalText=Hello World!"
     ports:
       - 8080:8080 # HTTP
       - 8081:8081 # Prometheus

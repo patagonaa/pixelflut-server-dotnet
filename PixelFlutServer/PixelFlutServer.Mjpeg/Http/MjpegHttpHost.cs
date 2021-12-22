@@ -64,7 +64,7 @@ namespace PixelFlutServer.Mjpeg.Http
             return Task.CompletedTask;
         }
 
-        private async Task GetFrameWorker()
+        private void GetFrameWorker()
         {
             using (var bitmap = new Bitmap(_width, _height, PixelFormat.Format24bppRgb))
             {
@@ -81,7 +81,7 @@ namespace PixelFlutServer.Mjpeg.Http
                         // send frame every now and then even if there's no new one available to give the TcpClient a chance to clean up old connections
                         try
                         {
-                            frame = await FrameHub.WaitForFrame(_cts.Token, 10000);
+                            frame = FrameHub.WaitForFrame(_cts.Token, 10000);
                         }
                         catch (TimeoutException)
                         {
@@ -95,6 +95,21 @@ namespace PixelFlutServer.Mjpeg.Http
                             var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
                             Marshal.Copy(frame, 0, data.Scan0, _width * _height * _bytesPerPixel);
                             bitmap.UnlockBits(data);
+
+                            if (!string.IsNullOrWhiteSpace(_config.AdditionalText))
+                            {
+                                using (var g = Graphics.FromImage(bitmap))
+                                {
+                                    var font = new Font("Consolas", _config.AdditionalTextSize);
+                                    var brush = new SolidBrush(Color.White);
+                                    var textSize = g.MeasureString(_config.AdditionalText, font);
+                                    var sizeX = (int)Math.Ceiling(textSize.Width);
+                                    var sizeY = (int)Math.Ceiling(textSize.Height);
+
+                                    g.FillRectangle(new SolidBrush(Color.Black), 0, _height - sizeY, sizeX, sizeY);
+                                    g.DrawString(_config.AdditionalText, font, brush, 0, _height - sizeY);
+                                }
+                            }
 
                             ms.Position = 0;
                             ms.SetLength(0);
