@@ -75,12 +75,12 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                                 return;
                             buffer[bufferPos++] = (char)chr;
 
-                            if (chr == ' ' || chr == '\n')
+                            if (chr == ' ' || chr == '\n' || chr == '\r')
                             {
                                 var idx = bufferPos;
                                 indices[indicesCount++] = idx;
                             }
-                            if (chr == '\n')
+                            if (chr == '\n' || chr == '\r')
                                 break;
                         }
                         _handledRecvBytes += (ulong)bufferPos;
@@ -93,6 +93,10 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
                         var firstPart = buffer.Slice(indices[0], indices[1] - indices[0] - 1);
 
+                        if (firstPart.Length == 0)
+                        {
+                            continue;
+                        }
                         if (firstPart.Length < 2)
                         {
                             LogInvalidLine(endPoint, buffer, bufferPos);
