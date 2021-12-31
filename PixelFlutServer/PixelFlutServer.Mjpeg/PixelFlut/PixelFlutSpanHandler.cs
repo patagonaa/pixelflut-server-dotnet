@@ -32,12 +32,12 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private ulong _handledRecvPixels = 0;
         private ulong _handledSentPixels = 0;
 
-        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
+        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
         {
-            await Task.Factory.StartNew(() => HandleInternal(stream, endPoint, pixelBuffer, frameReadyEvent, cancellationToken), TaskCreationOptions.LongRunning);
+            await Task.Factory.StartNew(() => HandleInternal(stream, endPoint, pixelBuffer, frameReadySemaphore, cancellationToken), TaskCreationOptions.LongRunning);
         }
 
-        private void HandleInternal(Stream netstream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
+        private void HandleInternal(Stream netstream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
         {
             lock (_statsLock)
             {
@@ -48,7 +48,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
                 Span<char> buffer = stackalloc char[1000];
                 int bufferPos = 0;
-                var stream = new StreamBufferWrapper(netstream, _serverConfig.NetworkBufferSize);
+                var stream = new StreamBufferWrapper(netstream, 1_048_576);
                 var indicesCount = 0;
                 var indices = new int[16];
 
@@ -193,7 +193,16 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                                     pixelsBgr[pixelIndex + 2] = newR;
                                 }
 
-                                frameReadyEvent.Set();
+                                if (frameReadySemaphore.CurrentCount == 0)
+                                {
+                                    try
+                                    {
+                                        frameReadySemaphore.Release();
+                                    }
+                                    catch (SemaphoreFullException)
+                                    {
+                                    }
+                                }
                                 _handledRecvPixels++;
                             }
                             else

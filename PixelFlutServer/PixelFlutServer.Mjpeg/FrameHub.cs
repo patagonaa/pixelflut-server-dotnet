@@ -6,12 +6,14 @@ namespace PixelFlutServer.Mjpeg
     public static class FrameHub
     {
         private static byte[] _currentFrame = null;
-        private static readonly AutoResetEvent _frameEvent = new AutoResetEvent(false);
+        private static readonly SemaphoreSlim _frameSemaphore = new SemaphoreSlim(0, 1);
 
         public static byte[] WaitForFrame(CancellationToken token, int timeoutMs)
         {
-            if (!LockUtils.WaitLockCancellable(ms => _frameEvent.WaitOne(ms), timeoutMs, token))
+            if(!_frameSemaphore.Wait(timeoutMs, token))
+            {
                 throw new TimeoutException();
+            }
             return _currentFrame;
         }
 
@@ -20,7 +22,10 @@ namespace PixelFlutServer.Mjpeg
             if (_currentFrame == null)
                 _currentFrame = new byte[frame.Length];
             Array.Copy(frame, _currentFrame, frame.Length);
-            _frameEvent.Set();
+            if (_frameSemaphore.CurrentCount == 0)
+            {
+                _frameSemaphore.Release();
+            }
         }
     }
 }

@@ -51,14 +51,14 @@ namespace PixelFlutServer.Benchmarks
 
         private void RunTest(IPixelFlutHandler sut)
         {
-            sut.Handle(_testData, null, _outputBuffer, new AutoResetEvent(false), CancellationToken.None).Wait();
+            sut.Handle(_testData, null, _outputBuffer, new SemaphoreSlim(1, 1), CancellationToken.None).Wait();
         }
 
         [Benchmark]
         public void Simple() => RunTest(new PixelFlutSimpleHandler(NullLogger<PixelFlutSimpleHandler>.Instance));
 
         [Benchmark]
-        public void Pipe() => RunTest(new PixelFlutPipeHandler(NullLogger<PixelFlutSpanHandler>.Instance));
+        public void Pipe() => RunTest(new PixelFlutPipeHandler(NullLogger<PixelFlutSpanHandler>.Instance, Options.Create(new PixelFlutServerConfig())));
 
         [Benchmark(Baseline = true)]
         public void Span() => RunTest(new PixelFlutSpanHandler(NullLogger<PixelFlutSpanHandler>.Instance, Options.Create(new PixelFlutServerConfig())));

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Prometheus;
 using System;
 using System.Buffers;
@@ -15,20 +16,22 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
     public class PixelFlutPipeHandler : IPixelFlutHandler
     {
         private readonly ILogger<PixelFlutSpanHandler> _logger;
+        private readonly PixelFlutServerConfig _serverConfig;
         private static readonly Counter _pixelRecvCounter = Metrics.CreateCounter("pixelflut_pixels_received", "Total number of received pixels");
         private static readonly Counter _pixelSentCounter = Metrics.CreateCounter("pixelflut_pixels_sent", "Total number of sent pixels");
         private static readonly Counter _byteCounter = Metrics.CreateCounter("pixelflut_bytes_received", "Total number of received bytes");
 
-        public PixelFlutPipeHandler(ILogger<PixelFlutSpanHandler> logger)
+        public PixelFlutPipeHandler(ILogger<PixelFlutSpanHandler> logger, IOptions<PixelFlutServerConfig> serverConfig)
         {
             _logger = logger;
+            _serverConfig = serverConfig.Value;
         }
 
         private ulong _handledRecvBytes = 0;
         private ulong _handledRecvPixels = 0;
         private ulong _handledSentPixels = 0;
 
-        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
+        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
         {
             using var timer = new System.Timers.Timer();
             timer.Elapsed += FlushStats;
@@ -36,10 +39,10 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             timer.AutoReset = true;
             timer.Start();
 
-            await Handle(stream, PipeReader.Create(stream, new StreamPipeReaderOptions(bufferSize: 1024, leaveOpen: true)), endPoint, pixelBuffer, frameReadyEvent, cancellationToken);
+            await Handle(stream, PipeReader.Create(stream, new StreamPipeReaderOptions(bufferSize: _serverConfig.NetworkBufferSize, leaveOpen: true)), endPoint, pixelBuffer, frameReadySemaphore, cancellationToken);
         }
 
-        private async Task Handle(Stream stream, PipeReader reader, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
+        private async Task Handle(Stream stream, PipeReader reader, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
         {
             int offsetX = 0;
             int offsetY = 0;
@@ -54,7 +57,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 ReadOnlySequence<byte> buffer = result.Buffer;
                 while (TryReadLine(ref buffer, encoding, new Span<char>(charBuffer), out int writtenChars))
                 {
-                    ProcessLine(new Span<char>(charBuffer).Slice(0, writtenChars), encoding, ref offsetX, ref offsetY, stream, endPoint, pixelBuffer, frameReadyEvent);
+                    ProcessLine(new Span<char>(charBuffer).Slice(0, writtenChars), encoding, ref offsetX, ref offsetY, stream, endPoint, pixelBuffer, frameReadySemaphore);
                 }
 
                 // Tell the PipeReader how much of the buffer has been consumed.
@@ -71,7 +74,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             await reader.CompleteAsync();
         }
 
-        private void ProcessLine(ReadOnlySpan<char> chars, Encoding encoding, ref int offsetX, ref int offsetY, Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent)
+        private void ProcessLine(ReadOnlySpan<char> chars, Encoding encoding, ref int offsetX, ref int offsetY, Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore)
         {
             var width = pixelBuffer.Width;
             var height = pixelBuffer.Height;
@@ -178,7 +181,16 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         pixels[pixelIndex + 2] = newB;
                     }
 
-                    frameReadyEvent.Set();
+                    if (frameReadySemaphore.CurrentCount == 0)
+                    {
+                        try
+                        {
+                            frameReadySemaphore.Release();
+                        }
+                        catch (SemaphoreFullException)
+                        {
+                        }
+                    }
                     Interlocked.Increment(ref _handledRecvPixels);
                 }
                 else if (MemoryExtensions.Equals(command, "OFFSET".AsSpan(), StringComparison.Ordinal))
@@ -272,7 +284,6 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             _pixelRecvCounter.Inc(recvPixels);
             var sentPixels = Interlocked.Exchange(ref _handledSentPixels, 0);
             _pixelSentCounter.Inc(sentPixels);
-            StatsHub.Increment(handledBytes, recvPixels, sentPixels);
         }
     }
 }
