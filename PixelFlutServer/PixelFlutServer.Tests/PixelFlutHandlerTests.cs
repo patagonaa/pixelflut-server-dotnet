@@ -55,7 +55,7 @@ namespace PixelFlutServer.Tests
             var simpleHandler = new PixelFlutSimpleHandler(NullLogger<PixelFlutSimpleHandler>.Instance);
 
             _testData.Position = 0;
-            await simpleHandler.Handle(_testData, null, expectedBuffer, new SemaphoreSlim(1, 1), CancellationToken.None);
+            await simpleHandler.Handle(_testData, null, expectedBuffer, new AutoResetEvent(false), CancellationToken.None);
 
             var suts = new List<IPixelFlutHandler>
             {
@@ -74,7 +74,7 @@ namespace PixelFlutServer.Tests
                     BytesPerPixel = bytesPerPixel
                 };
 
-                await sut.Handle(_testData, null, actualBuffer, new SemaphoreSlim(1, 1), CancellationToken.None);
+                await sut.Handle(_testData, null, actualBuffer, new AutoResetEvent(false), CancellationToken.None);
 
                 CollectionAssert.AreEqual(expectedBuffer.Buffer, actualBuffer.Buffer);
             }
@@ -106,7 +106,7 @@ namespace PixelFlutServer.Tests
                 };
 
                 var sw = Stopwatch.StartNew();
-                await sut.Handle(_testData, null, actualBuffer, new SemaphoreSlim(1, 1), CancellationToken.None);
+                await sut.Handle(_testData, null, actualBuffer, new AutoResetEvent(false), CancellationToken.None);
                 sw.Stop();
                 Console.WriteLine($"{sut.GetType()}: {sw.ElapsedMilliseconds}ms");
             }

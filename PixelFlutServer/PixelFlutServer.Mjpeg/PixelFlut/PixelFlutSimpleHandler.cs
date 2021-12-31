@@ -16,12 +16,12 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             _logger = logger;
         }
 
-        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
+        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
         {
-            await Task.Factory.StartNew(() => HandleInternal(stream, endPoint, pixelBuffer, frameReadySemaphore, cancellationToken), TaskCreationOptions.LongRunning);
+            await Task.Factory.StartNew(() => HandleInternal(stream, endPoint, pixelBuffer, frameReadyEvent, cancellationToken), TaskCreationOptions.LongRunning);
         }
 
-        private void HandleInternal(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
+        private void HandleInternal(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
         {
             var width = pixelBuffer.Width;
             var height = pixelBuffer.Height;
@@ -73,16 +73,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         pixels[pixelIndex] = (byte)(color & 0xFF);
                         pixels[pixelIndex + 1] = (byte)(color >> 8 & 0xFF);
                         pixels[pixelIndex + 2] = (byte)(color >> 16 & 0xFF);
-                        if (frameReadySemaphore.CurrentCount == 0)
-                        {
-                            try
-                            {
-                                frameReadySemaphore.Release();
-                            }
-                            catch (SemaphoreFullException)
-                            {
-                            }
-                        }
+
+                        frameReadyEvent.Set();
                     }
                     catch (Exception)
                     {

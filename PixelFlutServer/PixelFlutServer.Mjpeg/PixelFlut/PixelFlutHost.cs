@@ -25,7 +25,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private readonly int _bytesPerPixel;
         private readonly byte[] _pixels;
         private CancellationTokenSource _cts = new();
-        private static SemaphoreSlim _frameSemaphore = new SemaphoreSlim(1, 1);
+        private static AutoResetEvent _frameEvent = new AutoResetEvent(true);
         private IList<PixelFlutConnectionInfo> _connectionInfos = new List<PixelFlutConnectionInfo>();
         private readonly Gauge _connectionCounter = Metrics.CreateGauge("pixelflut_connections", "Number of Pixelflut connections");
         private readonly Counter _connectionCounterTotal = Metrics.CreateCounter("pixelflut_connections_total", "Number of Pixelflut connections since this instance started");
@@ -119,18 +119,18 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             }
         }
 
-        public async Task PublishFrameWorker()
+        public void PublishFrameWorker()
         {
             var sw = new Stopwatch();
 
             while (!_cts.IsCancellationRequested)
             {
                 sw.Restart();
+                _frameEvent.WaitOne();
                 Thread.MemoryBarrier();
-                await _frameSemaphore.WaitAsync();
                 FrameHub.SetFrame(_pixels);
 
-                await Task.Delay(Math.Max(0, _frameMs - (int)sw.ElapsedMilliseconds));
+                Thread.Sleep(Math.Max(0, _frameMs - (int)sw.ElapsedMilliseconds));
             }
         }
 
@@ -170,7 +170,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                     };
                     using (var stream = client.GetStream())
                     {
-                        await pixelFlutHandler.Handle(stream, connectionInfo.EndPoint, buffer, _frameSemaphore, _cts.Token);
+                        await pixelFlutHandler.Handle(stream, connectionInfo.EndPoint, buffer, _frameEvent, _cts.Token);
                     }
                     _logger.LogInformation("PixelFlut connection {Endpoint} closed!", connectionInfo.EndPoint);
                 }

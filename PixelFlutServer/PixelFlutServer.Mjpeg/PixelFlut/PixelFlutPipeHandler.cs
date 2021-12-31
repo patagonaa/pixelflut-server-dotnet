@@ -28,27 +28,18 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private ulong _handledRecvPixels = 0;
         private ulong _handledSentPixels = 0;
 
-        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
+        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
         {
-            var handleTask = Handle(stream, PipeReader.Create(stream, new StreamPipeReaderOptions(bufferSize: 10*1024*1024)), endPoint, pixelBuffer, frameReadySemaphore, cancellationToken);
+            using var timer = new System.Timers.Timer();
+            timer.Elapsed += FlushStats;
+            timer.Interval = 500;
+            timer.AutoReset = true;
+            timer.Start();
 
-            System.Timers.Timer timer = new System.Timers.Timer();
-            try
-            {
-                timer.Elapsed += FlushStats;
-                timer.Interval = 5000;
-                timer.AutoReset = true;
-                timer.Start();
-
-                await Task.WhenAll(handleTask);
-            }
-            finally
-            {
-                timer.Dispose();
-            }
+            await Handle(stream, PipeReader.Create(stream, new StreamPipeReaderOptions(bufferSize: 1024, leaveOpen: true)), endPoint, pixelBuffer, frameReadyEvent, cancellationToken);
         }
 
-        private async Task Handle(Stream stream, PipeReader reader, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
+        private async Task Handle(Stream stream, PipeReader reader, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
         {
             int offsetX = 0;
             int offsetY = 0;
@@ -63,7 +54,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 ReadOnlySequence<byte> buffer = result.Buffer;
                 while (TryReadLine(ref buffer, encoding, new Span<char>(charBuffer), out int writtenChars))
                 {
-                    ProcessLine(new Span<char>(charBuffer).Slice(0, writtenChars), encoding, ref offsetX, ref offsetY, stream, endPoint, pixelBuffer, frameReadySemaphore);
+                    ProcessLine(new Span<char>(charBuffer).Slice(0, writtenChars), encoding, ref offsetX, ref offsetY, stream, endPoint, pixelBuffer, frameReadyEvent);
                 }
 
                 // Tell the PipeReader how much of the buffer has been consumed.
@@ -80,7 +71,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             await reader.CompleteAsync();
         }
 
-        private void ProcessLine(ReadOnlySpan<char> chars, Encoding encoding, ref int offsetX, ref int offsetY, Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore)
+        private void ProcessLine(ReadOnlySpan<char> chars, Encoding encoding, ref int offsetX, ref int offsetY, Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent)
         {
             var width = pixelBuffer.Width;
             var height = pixelBuffer.Height;
@@ -108,21 +99,21 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             {
                 if (command.Length == 2 && command[0] == 'P' && command[1] == 'X')
                 {
-                    if(!TryGetInt(chars, ref spaceIndex, out var x) ||
+                    if (!TryGetInt(chars, ref spaceIndex, out var x) ||
                         !TryGetInt(chars, ref spaceIndex, out var y))
                     {
                         LogError(chars);
                         return;
                     }
 
-                    if(spaceIndex == -1) // PX X Y
+                    if (spaceIndex == -1) // PX X Y
                     {
                         var pxIndex = (y * width + x) * bytesPerPixel;
 
                         if (y < 0 || y >= height || x < 0 || x >= width)
                         {
 #if DEBUG
-                                _logger.LogWarning("Invalid coordinates from {EndPoint} at line {Line}", endPoint, new string(chars));
+                            _logger.LogWarning("Invalid coordinates from {EndPoint} at line {Line}", endPoint, new string(chars));
 #endif
                             return;
                         }
@@ -132,7 +123,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         return;
                     }
 
-                    if(!TryGetHexUInt(chars, ref spaceIndex, out var color))
+                    if (!TryGetHexUInt(chars, ref spaceIndex, out var color))
                     {
                         LogError(chars);
                         return;
@@ -187,16 +178,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         pixels[pixelIndex + 2] = newB;
                     }
 
-                    if (frameReadySemaphore.CurrentCount == 0)
-                    {
-                        try
-                        {
-                            frameReadySemaphore.Release();
-                        }
-                        catch (SemaphoreFullException)
-                        {
-                        }
-                    }
+                    frameReadyEvent.Set();
                     Interlocked.Increment(ref _handledRecvPixels);
                 }
                 else if (MemoryExtensions.Equals(command, "OFFSET".AsSpan(), StringComparison.Ordinal))
@@ -290,6 +272,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             _pixelRecvCounter.Inc(recvPixels);
             var sentPixels = Interlocked.Exchange(ref _handledSentPixels, 0);
             _pixelSentCounter.Inc(sentPixels);
+            StatsHub.Increment(handledBytes, recvPixels, sentPixels);
         }
     }
 }

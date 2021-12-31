@@ -32,12 +32,12 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private ulong _handledRecvPixels = 0;
         private ulong _handledSentPixels = 0;
 
-        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
+        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
         {
-            await Task.Factory.StartNew(() => HandleInternal(stream, endPoint, pixelBuffer, frameReadySemaphore, cancellationToken), TaskCreationOptions.LongRunning);
+            await Task.Factory.StartNew(() => HandleInternal(stream, endPoint, pixelBuffer, frameReadyEvent, cancellationToken), TaskCreationOptions.LongRunning);
         }
 
-        private void HandleInternal(Stream netstream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
+        private void HandleInternal(Stream netstream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
         {
             lock (_statsLock)
             {
@@ -48,7 +48,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
                 Span<char> buffer = stackalloc char[1000];
                 int bufferPos = 0;
-                var stream = new StreamBufferWrapper(netstream, 1_048_576);
+                var stream = new StreamBufferWrapper(netstream, 1024);
                 var indicesCount = 0;
                 var indices = new int[16];
 
@@ -75,13 +75,17 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                                 return;
                             buffer[bufferPos++] = (char)chr;
 
-                            if (chr == ' ' || chr == '\n' || chr == '\r')
+                            if (chr == ' ')
                             {
                                 var idx = bufferPos;
                                 indices[indicesCount++] = idx;
                             }
-                            if (chr == '\n' || chr == '\r')
+                            else if (chr == '\n' || chr == '\r')
+                            {
+                                var idx = bufferPos;
+                                indices[indicesCount++] = idx;
                                 break;
+                            }
                         }
                         _handledRecvBytes += (ulong)bufferPos;
 
@@ -106,8 +110,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         if (firstPart[0] == 'P' && firstPart[1] == 'X')
                         {
                             if (indicesCount < 4 ||
-                                !int.TryParse(buffer.Slice(indices[1], indices[2] - indices[1] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var x) ||
-                                !int.TryParse(buffer.Slice(indices[2], indices[3] - indices[2] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var y))
+                                !TryParseInt(buffer.Slice(indices[1], indices[2] - indices[1] - 1), out var x) ||
+                                !TryParseInt(buffer.Slice(indices[2], indices[3] - indices[2] - 1), out var y))
                             {
                                 LogInvalidLine(endPoint, buffer, bufferPos);
                                 continue;
@@ -189,16 +193,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                                     pixelsBgr[pixelIndex + 2] = newR;
                                 }
 
-                                if (frameReadySemaphore.CurrentCount == 0)
-                                {
-                                    try
-                                    {
-                                        frameReadySemaphore.Release();
-                                    }
-                                    catch (SemaphoreFullException)
-                                    {
-                                    }
-                                }
+                                frameReadyEvent.Set();
                                 _handledRecvPixels++;
                             }
                             else
@@ -217,8 +212,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             else if (strFirstPart == "OFFSET")
                             {
                                 if (indicesCount != 4 ||
-                                    !int.TryParse(buffer.Slice(indices[1], indices[2] - indices[1] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var x) ||
-                                    !int.TryParse(buffer.Slice(indices[2], indices[3] - indices[2] - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var y))
+                                    !TryParseInt(buffer.Slice(indices[1], indices[2] - indices[1] - 1), out var x) ||
+                                    !TryParseInt(buffer.Slice(indices[2], indices[3] - indices[2] - 1), out var y))
                                 {
                                     LogInvalidLine(endPoint, buffer, bufferPos);
                                     continue;
@@ -258,6 +253,11 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         _logger.LogInformation("Remaining Buffer: {RemainingBuffer}", FormatLine(buffer.Slice(0, bufferPos)));
                 }
             }
+        }
+
+        private static bool TryParseInt(ReadOnlySpan<char> span, out int num)
+        {
+            return int.TryParse(span, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out num);
         }
 
         private void LogInvalidLine(EndPoint endPoint, Span<char> buffer, int bufferPos)
