@@ -6,12 +6,15 @@ namespace PixelFlutServer.Mjpeg
     public static class FrameHub
     {
         private static byte[] _currentFrame = null;
-        private static readonly AutoResetEvent _frameEvent = new AutoResetEvent(false);
+        private static readonly ManualResetEventSlim _frameEvent = new ManualResetEventSlim(false);
 
         public static byte[] WaitForFrame(CancellationToken token, int timeoutMs)
         {
-            if (!LockUtils.WaitLockCancellable(ms => _frameEvent.WaitOne(ms), timeoutMs, token))
+            if(!_frameEvent.Wait(timeoutMs, token))
+            {
                 throw new TimeoutException();
+            }
+            _frameEvent.Reset();
             return _currentFrame;
         }
 
