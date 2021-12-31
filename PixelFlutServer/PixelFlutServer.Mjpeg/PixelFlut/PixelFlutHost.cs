@@ -6,6 +6,7 @@ using Prometheus;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -22,7 +23,6 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private readonly int _frameMs;
         private readonly int _width;
         private readonly int _height;
-        private readonly int _bytesPerPixel;
         private readonly byte[] _pixels;
         private CancellationTokenSource _cts = new();
         private static AutoResetEvent _frameEvent = new AutoResetEvent(true);
@@ -43,9 +43,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
             _width = config.Width;
             _height = config.Height;
-            _bytesPerPixel = config.BytesPerPixel;
 
-            _pixels = new byte[_width * _height * _bytesPerPixel];
+            _pixels = new byte[_width * _height * Const.FrameBytesPerPixel];
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -129,6 +128,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 _frameEvent.WaitOne();
                 Thread.MemoryBarrier();
                 FrameHub.SetFrame(_pixels);
+                Thread.MemoryBarrier();
 
                 Thread.Sleep(Math.Max(0, _frameMs - (int)sw.ElapsedMilliseconds));
             }
@@ -165,7 +165,6 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                     {
                         Width = _width,
                         Height = _height,
-                        BytesPerPixel = _bytesPerPixel,
                         Buffer = _pixels
                     };
                     using (var stream = client.GetStream())

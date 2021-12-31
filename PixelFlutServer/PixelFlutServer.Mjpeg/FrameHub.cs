@@ -10,18 +10,9 @@ namespace PixelFlutServer.Mjpeg
 
         public static byte[] WaitForFrame(CancellationToken token, int timeoutMs)
         {
-            var waitTimeTotal = 0;
-            var loopWaitTime = Math.Min(1000, timeoutMs);
-            do
-            {
-                if (_frameEvent.WaitOne(loopWaitTime))
-                {
-                    return _currentFrame;
-                }
-                waitTimeTotal += loopWaitTime;
-            } while (waitTimeTotal < timeoutMs && !token.IsCancellationRequested);
-
-            throw new TimeoutException();
+            if (!LockUtils.WaitLockCancellable(ms => _frameEvent.WaitOne(ms), timeoutMs, token))
+                throw new TimeoutException();
+            return _currentFrame;
         }
 
         public static void SetFrame(byte[] frame)

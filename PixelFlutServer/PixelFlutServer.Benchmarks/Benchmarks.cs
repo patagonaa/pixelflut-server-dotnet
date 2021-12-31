@@ -23,7 +23,6 @@ namespace PixelFlutServer.Benchmarks
         {
             var width = 4000;
             var height = 4000;
-            var bytesPerPixel = 3;
 
             _testData = new MemoryStream();
             var rand = new Random();
@@ -38,10 +37,9 @@ namespace PixelFlutServer.Benchmarks
 
             _outputBuffer = new PixelBuffer
             {
-                Buffer = new byte[width * height * bytesPerPixel],
+                Buffer = new byte[width * height * Const.FrameBytesPerPixel],
                 Width = width,
-                Height = height,
-                BytesPerPixel = bytesPerPixel
+                Height = height
             };
         }
 

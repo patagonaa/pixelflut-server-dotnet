@@ -43,7 +43,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             {
                 var width = pixelBuffer.Width;
                 var height = pixelBuffer.Height;
-                var bytesPerPixel = pixelBuffer.BytesPerPixel;
+                var bytesPerPixel = Const.FrameBytesPerPixel;
                 var pixelsBgr = pixelBuffer.Buffer;
 
                 Span<char> buffer = stackalloc char[1000];

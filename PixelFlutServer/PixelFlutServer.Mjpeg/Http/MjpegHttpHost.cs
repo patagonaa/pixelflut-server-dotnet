@@ -30,7 +30,6 @@ namespace PixelFlutServer.Mjpeg.Http
 
         private readonly int _width;
         private readonly int _height;
-        private readonly int _bytesPerPixel;
         private readonly IList<MjpegConnectionInfo> _mjpegConnectionInfos = new List<MjpegConnectionInfo>();
 
         private readonly Gauge _connectionGauge = Metrics.CreateGauge("http_connections", "Number of HTTP connections", "endpoint");
@@ -46,7 +45,6 @@ namespace PixelFlutServer.Mjpeg.Http
 
             _width = _config.Width;
             _height = _config.Height;
-            _bytesPerPixel = _config.BytesPerPixel;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -92,8 +90,8 @@ namespace PixelFlutServer.Mjpeg.Http
 
                         if (frame != null)
                         {
-                            var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-                            Marshal.Copy(frame, 0, data.Scan0, _width * _height * _bytesPerPixel);
+                            var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, Const.FramePixelFormat);
+                            Marshal.Copy(frame, 0, data.Scan0, _width * _height * Const.FrameBytesPerPixel);
                             bitmap.UnlockBits(data);
 
                             if (!string.IsNullOrWhiteSpace(_config.AdditionalText))
@@ -240,7 +238,7 @@ namespace PixelFlutServer.Mjpeg.Http
                         }
                         else
                         {
-                            await frameWaitSemaphore.WaitAsync();
+                            await frameWaitSemaphore.WaitAsync(_cts.Token);
                         }
 
                         var frame = _currentJpeg;

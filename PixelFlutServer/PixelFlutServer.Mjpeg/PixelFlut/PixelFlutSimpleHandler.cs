@@ -25,7 +25,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         {
             var width = pixelBuffer.Width;
             var height = pixelBuffer.Height;
-            var bytesPerPixel = pixelBuffer.BytesPerPixel;
+            var bytesPerPixel = Const.FrameBytesPerPixel;
             var pixels = pixelBuffer.Buffer;
 
             var sr = new StreamReader(stream, leaveOpen: true);
