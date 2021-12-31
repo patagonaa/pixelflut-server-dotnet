@@ -48,7 +48,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
                 Span<char> buffer = stackalloc char[1000];
                 int bufferPos = 0;
-                var stream = new StreamBufferWrapper(netstream, 1024);
+                var stream = new StreamBufferWrapper(netstream, _serverConfig.NetworkBufferSize);
                 var indicesCount = 0;
                 var indices = new int[16];
 

@@ -12,5 +12,6 @@
         public string PersistPath { get; set; } = ".";
         public string AdditionalText { get; set; }
         public int AdditionalTextSize { get; set; } = 14;
+        public int NetworkBufferSize { get; set; } = 1048576;
     }
 }
