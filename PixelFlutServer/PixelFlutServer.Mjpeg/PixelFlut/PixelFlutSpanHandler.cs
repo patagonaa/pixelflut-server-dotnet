@@ -32,12 +32,12 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private ulong _handledRecvPixels = 0;
         private ulong _handledSentPixels = 0;
 
-        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
+        public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, ManualResetEventSlim frameReadyEvent, CancellationToken cancellationToken)
         {
             await Task.Factory.StartNew(() => HandleInternal(stream, endPoint, pixelBuffer, frameReadyEvent, cancellationToken), TaskCreationOptions.LongRunning);
         }
 
-        private void HandleInternal(Stream netstream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken)
+        private void HandleInternal(Stream netstream, EndPoint endPoint, PixelBuffer pixelBuffer, ManualResetEventSlim frameReadyEvent, CancellationToken cancellationToken)
         {
             lock (_statsLock)
             {

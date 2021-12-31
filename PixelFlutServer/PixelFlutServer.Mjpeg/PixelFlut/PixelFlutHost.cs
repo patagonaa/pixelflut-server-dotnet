@@ -6,7 +6,6 @@ using Prometheus;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -25,7 +24,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private readonly int _height;
         private readonly byte[] _pixels;
         private CancellationTokenSource _cts = new();
-        private static AutoResetEvent _frameEvent = new AutoResetEvent(true);
+        private static ManualResetEventSlim _frameEvent = new ManualResetEventSlim(true);
         private IList<PixelFlutConnectionInfo> _connectionInfos = new List<PixelFlutConnectionInfo>();
         private readonly Gauge _connectionCounter = Metrics.CreateGauge("pixelflut_connections", "Number of Pixelflut connections");
         private readonly Counter _connectionCounterTotal = Metrics.CreateCounter("pixelflut_connections_total", "Number of Pixelflut connections since this instance started");
@@ -125,7 +124,8 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             while (!_cts.IsCancellationRequested)
             {
                 sw.Restart();
-                _frameEvent.WaitOne();
+                _frameEvent.Wait(_cts.Token);
+                _frameEvent.Reset();
                 Thread.MemoryBarrier();
                 FrameHub.SetFrame(_pixels);
                 Thread.MemoryBarrier();

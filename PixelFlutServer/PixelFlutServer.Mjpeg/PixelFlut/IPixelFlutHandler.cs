@@ -7,6 +7,6 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 {
     public interface IPixelFlutHandler
     {
-        Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, AutoResetEvent frameReadyEvent, CancellationToken cancellationToken);
+        Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, ManualResetEventSlim frameReadyEvent, CancellationToken cancellationToken);
     }
 }

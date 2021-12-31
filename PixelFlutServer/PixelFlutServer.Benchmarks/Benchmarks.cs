@@ -51,7 +51,7 @@ namespace PixelFlutServer.Benchmarks
 
         private void RunTest(IPixelFlutHandler sut)
         {
-            sut.Handle(_testData, null, _outputBuffer, new AutoResetEvent(false), CancellationToken.None).Wait();
+            sut.Handle(_testData, null, _outputBuffer, new ManualResetEventSlim(false), CancellationToken.None).Wait();
         }
 
         [Benchmark]
