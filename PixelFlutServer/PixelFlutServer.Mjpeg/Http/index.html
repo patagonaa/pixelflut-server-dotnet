@@ -64,15 +64,21 @@
                 }
             }
 
-            start() {
-                this.updateStats()
-                setInterval(() => this.updateStats(), 1000);
+            async delay(timeout) {
+                await new Promise((resolve) => setTimeout(() => resolve(), timeout));
+            }
+
+            async run() {
+                while (true) {
+                    await this.updateStats();
+                    await this.delay(1000);
+                }
             }
         }
 
         window.onload = () => {
             let handler = new StatsHandler(document.getElementById('stats'));
-            handler.start();
+            handler.run();
         };
     </script>
 </head>
