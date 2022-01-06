@@ -158,9 +158,11 @@ namespace PixelFlutServer.Mjpeg.Http
             {
                 try
                 {
-                    _logger.LogInformation("HTTP Connection from {Endpoint}: {HttpMethod} {Path}", context.Request.RemoteEndPoint, context.Request.HttpMethod, context.Request.Url.LocalPath);
-                    LogHeaders(context.Request);
-                    switch (context.Request.Url.LocalPath)
+                    var urlPath = context.Request.Url.LocalPath;
+                    var logLevel = urlPath == statsEndpoint ? LogLevel.Debug : LogLevel.Information;
+                    _logger.Log(logLevel, "HTTP Connection from {Endpoint}: {HttpMethod} {Path}", context.Request.RemoteEndPoint, context.Request.HttpMethod, urlPath);
+                    LogHeaders(logLevel, context.Request);
+                    switch (urlPath)
                     {
                         case streamEndpoint:
                             await ConnectionHandlerMJpeg(context);
@@ -259,7 +261,7 @@ namespace PixelFlutServer.Mjpeg.Http
             }
         }
 
-        private void LogHeaders(HttpListenerRequest request)
+        private void LogHeaders(LogLevel logLevel, HttpListenerRequest request)
         {
             var headersToLog = new[] { "User-Agent", "Referer", "X-Forwarded-For", "Host" };
             foreach (var headerKey in request.Headers.AllKeys)
@@ -267,7 +269,7 @@ namespace PixelFlutServer.Mjpeg.Http
                 var headerValue = request.Headers[headerKey];
                 if (headersToLog.Any(x => headerKey.Equals(x, StringComparison.OrdinalIgnoreCase)))
                 {
-                    _logger.LogInformation("{HeaderKey}: {HeaderValue}", headerKey, headerValue);
+                    _logger.Log(logLevel, "{HeaderKey}: {HeaderValue}", headerKey, headerValue);
                 }
                 else
                 {
