@@ -26,7 +26,7 @@ rm packages-microsoft-prod.deb
 sudo apt update && sudo apt install dotnet-sdk-5.0 libgdiplus
 ```
 
-Example startup:
+Example startup with HTTP port 8080, Pixelflut port 1234 (for more config options see [PixelFlutServerConfig.cs](https://github.com/patagonaa/pixelflut-server-dotnet/blob/main/PixelFlutServer/PixelFlutServer.Mjpeg/PixelFlutServerConfig.cs)):
 ```bash
 cd PixelFlutServer/PixelFlutServer.Mjpeg
 MjpegPort=8080 PixelFlutPort=1234 dotnet run -c Release
