@@ -16,7 +16,17 @@ If you're using Docker, `docker-compose up --build -d` should get you up and run
 
 If  you don't want to use Docker, you can either run this on Windows using Visual Studio or on Windows/Linux/macOS using [.NET SDK](https://docs.microsoft.com/de-de/dotnet/core/install/linux) and `libgdiplus`. Settings can also be set via environment variables.
 
-Example:
+Installation on Ubuntu (e.g. 20.04):
+```bash
+sudo add-apt-repository universe
+wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb
+rm packages-microsoft-prod.deb
+
+sudo apt update && sudo apt install dotnet-sdk-5.0 libgdiplus
+```
+
+Example startup:
 ```bash
 cd PixelFlutServer/PixelFlutServer.Mjpeg
 MjpegPort=8080 PixelFlutPort=1234 dotnet run -c Release
