@@ -111,9 +111,10 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 {
                     connectionCount = _connectionInfos.Count;
                 }
+                StatsHub.SetConnectionCount(connectionCount);
                 _connectionCounter.Set(connectionCount);
                 _logger.LogDebug("PixelFlut Connections: {ConnectionCount}", connectionCount);
-                await Task.Delay(10000);
+                await Task.Delay(1000);
             }
         }
 

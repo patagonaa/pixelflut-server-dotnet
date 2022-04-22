@@ -39,7 +39,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             timer.AutoReset = true;
             timer.Start();
 
-            await Handle(stream, PipeReader.Create(stream, new StreamPipeReaderOptions(bufferSize: _serverConfig.NetworkBufferSize, leaveOpen: true)), endPoint, pixelBuffer, frameReadySemaphore, cancellationToken);
+            await Handle(stream, PipeReader.Create(stream, new StreamPipeReaderOptions(bufferSize: 1048576, leaveOpen: true)), endPoint, pixelBuffer, frameReadySemaphore, cancellationToken);
         }
 
         private async Task Handle(Stream stream, PipeReader reader, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)

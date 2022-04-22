@@ -8,6 +8,7 @@ namespace PixelFlutServer.Mjpeg
         private static ulong _receivedBytes;
         private static ulong _receivedPixels;
         private static ulong _sentPixels;
+        private static int _pixelFlutConnectionCount;
 
         public static void Increment(ulong receivedBytes, ulong receivedPixels, ulong sentPixels)
         {
@@ -19,9 +20,14 @@ namespace PixelFlutServer.Mjpeg
             }
         }
 
+        public static void SetConnectionCount(int pixelFlutConnectionCount)
+        {
+            _pixelFlutConnectionCount = pixelFlutConnectionCount;
+        }
+
         public static Stats GetStats()
         {
-            return new Stats(_receivedBytes, _receivedPixels, _sentPixels);
+            return new Stats(_receivedBytes, _receivedPixels, _sentPixels, _pixelFlutConnectionCount);
         }
     }
 }

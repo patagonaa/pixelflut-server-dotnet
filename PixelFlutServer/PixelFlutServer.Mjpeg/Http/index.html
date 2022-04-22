@@ -4,6 +4,12 @@
 <head>
     <meta charset="utf-8" />
     <title>PixelFlut!</title>
+    <style>
+        #stats table {
+            float: left;
+            margin-right: 5px;
+        }
+    </style>
     <script>
         class StatsHandler {
             constructor(element) {
@@ -41,6 +47,16 @@
         <td>pixels sent</td>
         <td>${this.formatNumber(stats.SentPixels)}</td>
         <td>${this.formatNumber((stats.SentPixels - this.lastStats?.SentPixels) / intervalSeconds)}</td>
+    </tr>
+</table>
+<table border="1" cellpadding="5">
+    <tr>
+        <th></th>
+        <th>current</th>
+    </tr>
+    <tr>
+        <td>PixelFlut connections</td>
+        <td>${stats.PixelFlutConnections.toFixed(0)}</td>
     </tr>
 </table>
 `;
