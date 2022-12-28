@@ -138,8 +138,21 @@ namespace PixelFlutServer.Mjpeg.Http
         {
             while (!_cts.IsCancellationRequested)
             {
-                var context = await _listener.GetContextAsync();
-                _ = Task.Factory.StartNew(() => ConnectionHandler(context), TaskCreationOptions.LongRunning);
+                try
+                {
+                    var context = await _listener.GetContextAsync();
+                    _ = Task.Factory.StartNew(() => ConnectionHandler(context), TaskCreationOptions.LongRunning);
+                }
+                catch (ObjectDisposedException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    if (_cts.IsCancellationRequested)
+                        throw;
+                    _logger.LogError(ex, "Unhandled error while accepting HTTP connection");
+                }
             }
         }
 
