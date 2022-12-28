@@ -9,6 +9,26 @@
             float: left;
             margin-right: 5px;
         }
+
+        :fullscreen #controls {
+            display: none;
+        }
+
+        :fullscreen body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        :fullscreen #stream {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        :fullscreen #stream.pixelated {
+            image-rendering: pixelated;
+        }
     </style>
     <script>
         class StatsHandler {
@@ -28,36 +48,36 @@
                 let intervalSeconds = (time - this.lastStatsTime) / 1000;
                 this.element.innerHTML = `
 <table border="1" cellpadding="5">
-    <tr>
-        <th></th>
-        <th>total</th>
-        <th>per second</th>
-    </tr>
-    <tr>
-        <td>bytes received</td>
-        <td>${this.formatNumber(stats.ReceivedBytes)}</td>
-        <td>${this.formatNumber((stats.ReceivedBytes - this.lastStats?.ReceivedBytes) / intervalSeconds)}</td>
-    </tr>
-    <tr>
-        <td>pixels received</td>
-        <td>${this.formatNumber(stats.ReceivedPixels)}</td>
-        <td>${this.formatNumber((stats.ReceivedPixels - this.lastStats?.ReceivedPixels) / intervalSeconds)}</td>
-    </tr>
-    <tr>
-        <td>pixels sent</td>
-        <td>${this.formatNumber(stats.SentPixels)}</td>
-        <td>${this.formatNumber((stats.SentPixels - this.lastStats?.SentPixels) / intervalSeconds)}</td>
-    </tr>
+            <tr>
+                <th></th>
+                <th>total</th>
+                <th>per second</th>
+            </tr>
+            <tr>
+                <td>bytes received</td>
+                <td>${this.formatNumber(stats.ReceivedBytes)}</td>
+                <td>${this.formatNumber((stats.ReceivedBytes - this.lastStats?.ReceivedBytes) / intervalSeconds)}</td>
+            </tr>
+            <tr>
+                <td>pixels received</td>
+                <td>${this.formatNumber(stats.ReceivedPixels)}</td>
+                <td>${this.formatNumber((stats.ReceivedPixels - this.lastStats?.ReceivedPixels) / intervalSeconds)}</td>
+            </tr>
+            <tr>
+                <td>pixels sent</td>
+                <td>${this.formatNumber(stats.SentPixels)}</td>
+                <td>${this.formatNumber((stats.SentPixels - this.lastStats?.SentPixels) / intervalSeconds)}</td>
+            </tr>
 </table>
 <table border="1" cellpadding="5">
-    <tr>
-        <th></th>
-        <th>current</th>
-    </tr>
-    <tr>
-        <td>PixelFlut connections</td>
-        <td>${stats.PixelFlutConnections.toFixed(0)}</td>
-    </tr>
+            <tr>
+                <th></th>
+                <th>current</th>
+            </tr>
+            <tr>
+                <td>PixelFlut connections</td>
+                <td>${stats.PixelFlutConnections.toFixed(0)}</td>
+            </tr>
 </table>
 `;
 
@@ -92,6 +112,17 @@
             }
         }
 
+        function fullScreen(pixelated) {
+            const img = document.getElementById('stream');
+            if (pixelated) {
+                img.classList.add('pixelated');
+            } else {
+                img.classList.remove('pixelated');
+            }
+
+            document.documentElement.requestFullscreen();
+        }
+
         window.onload = () => {
             let handler = new StatsHandler(document.getElementById('stats'));
             handler.run();
@@ -99,7 +130,12 @@
     </script>
 </head>
 <body>
-    <img src="stream.jpg" /><br/>
-    <div id="stats">This is where I would put the stats... IF I HAD JAVASCRIPT!</div>
+    <img id="stream" src="stream.jpg" />
+    <div id="controls">
+        <button onclick="fullScreen(false)">Fullscreen (Smooth)</button>
+        <button onclick="fullScreen(true)">Fullscreen (Pixelated)</button>
+        <br />
+        <div id="stats">This is where I would put the stats... IF I HAD JAVASCRIPT!</div>
+    </div>
 </body>
 </html>
