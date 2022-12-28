@@ -114,7 +114,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 StatsHub.SetConnectionCount(connectionCount);
                 _connectionCounter.Set(connectionCount);
                 _logger.LogDebug("PixelFlut Connections: {ConnectionCount}", connectionCount);
-                await Task.Delay(1000);
+                await Task.Delay(1000, _cts.Token);
             }
         }
 
@@ -125,7 +125,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             while (!_cts.IsCancellationRequested)
             {
                 sw.Restart();
-                await _frameSemaphore.WaitAsync();
+                await _frameSemaphore.WaitAsync(_cts.Token);
                 Thread.MemoryBarrier();
                 FrameHub.SetFrame(_pixels);
 
