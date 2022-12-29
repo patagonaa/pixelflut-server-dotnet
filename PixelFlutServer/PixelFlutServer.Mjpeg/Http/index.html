@@ -8,15 +8,21 @@
         #stats table {
             float: left;
             margin-right: 5px;
+            margin-top: 5px;
         }
 
-        :fullscreen #controls {
+        #controls td > * {
+            margin-right: 5px;
+        }
+
+        :fullscreen #bottom {
             display: none;
         }
 
         :fullscreen body {
             margin: 0;
             overflow: hidden;
+            background: #000;
         }
 
         :fullscreen #stream {
@@ -26,9 +32,13 @@
             display: block;
         }
 
-        :fullscreen #stream.pixelated {
-            image-rendering: pixelated;
-        }
+            :fullscreen #stream.pixelated {
+                image-rendering: pixelated;
+            }
+
+            :fullscreen #stream.contain {
+                object-fit: contain;
+            }
     </style>
     <script>
         class StatsHandler {
@@ -48,36 +58,36 @@
                 let intervalSeconds = (time - this.lastStatsTime) / 1000;
                 this.element.innerHTML = `
 <table border="1" cellpadding="5">
-            <tr>
-                <th></th>
-                <th>total</th>
-                <th>per second</th>
-            </tr>
-            <tr>
-                <td>bytes received</td>
-                <td>${this.formatNumber(stats.ReceivedBytes)}</td>
-                <td>${this.formatNumber((stats.ReceivedBytes - this.lastStats?.ReceivedBytes) / intervalSeconds)}</td>
-            </tr>
-            <tr>
-                <td>pixels received</td>
-                <td>${this.formatNumber(stats.ReceivedPixels)}</td>
-                <td>${this.formatNumber((stats.ReceivedPixels - this.lastStats?.ReceivedPixels) / intervalSeconds)}</td>
-            </tr>
-            <tr>
-                <td>pixels sent</td>
-                <td>${this.formatNumber(stats.SentPixels)}</td>
-                <td>${this.formatNumber((stats.SentPixels - this.lastStats?.SentPixels) / intervalSeconds)}</td>
-            </tr>
+                    <tr>
+                        <th></th>
+                        <th>total</th>
+                        <th>per second</th>
+                    </tr>
+                    <tr>
+                        <td>bytes received</td>
+                        <td>${this.formatNumber(stats.ReceivedBytes)}</td>
+                        <td>${this.formatNumber((stats.ReceivedBytes - this.lastStats?.ReceivedBytes) / intervalSeconds)}</td>
+                    </tr>
+                    <tr>
+                        <td>pixels received</td>
+                        <td>${this.formatNumber(stats.ReceivedPixels)}</td>
+                        <td>${this.formatNumber((stats.ReceivedPixels - this.lastStats?.ReceivedPixels) / intervalSeconds)}</td>
+                    </tr>
+                    <tr>
+                        <td>pixels sent</td>
+                        <td>${this.formatNumber(stats.SentPixels)}</td>
+                        <td>${this.formatNumber((stats.SentPixels - this.lastStats?.SentPixels) / intervalSeconds)}</td>
+                    </tr>
 </table>
 <table border="1" cellpadding="5">
-            <tr>
-                <th></th>
-                <th>current</th>
-            </tr>
-            <tr>
-                <td>PixelFlut connections</td>
-                <td>${stats.PixelFlutConnections.toFixed(0)}</td>
-            </tr>
+                    <tr>
+                        <th></th>
+                        <th>current</th>
+                    </tr>
+                    <tr>
+                        <td>PixelFlut connections</td>
+                        <td>${stats.PixelFlutConnections.toFixed(0)}</td>
+                    </tr>
 </table>
 `;
 
@@ -112,13 +122,13 @@
             }
         }
 
-        function fullScreen(pixelated) {
+        function fullScreen() {
             const img = document.getElementById('stream');
-            if (pixelated) {
-                img.classList.add('pixelated');
-            } else {
-                img.classList.remove('pixelated');
-            }
+            const pixelated = document.getElementById('pixelated').checked;
+            const objectFit = document.getElementById('objectFit').value;
+
+            img.style.imageRendering = pixelated ? 'pixelated' : 'smooth';
+            img.style.objectFit = objectFit;
 
             document.documentElement.requestFullscreen();
         }
@@ -131,10 +141,23 @@
 </head>
 <body>
     <img id="stream" src="stream.jpg" />
-    <div id="controls">
-        <button onclick="fullScreen(false)">Fullscreen (Smooth)</button>
-        <button onclick="fullScreen(true)">Fullscreen (Pixelated)</button>
-        <br />
+    <div id="bottom">
+        <table id="controls" border="1" cellpadding="5">
+            <tr>
+                <td>
+                    <label>Fullscreen:</label>
+                    <label><input id="pixelated" type="checkbox" checked /> Pixelated</label>
+                    <label>
+                        <select id="objectFit">
+                            <option value="fill">Fill</option>
+                            <option value="contain" selected>Contain</option>
+                            <option value="cover">Cover</option>
+                        </select>
+                    </label>
+                    <button onclick="fullScreen()">Go</button>
+                </td>
+            </tr>
+        </table>
         <div id="stats">This is where I would put the stats... IF I HAD JAVASCRIPT!</div>
     </div>
 </body>
