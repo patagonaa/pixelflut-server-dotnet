@@ -25,6 +25,16 @@ namespace PixelFlutServer.Mjpeg
             _pixelFlutConnectionCount = pixelFlutConnectionCount;
         }
 
+        public static void SetStats(Stats stats)
+        {
+            lock (_syncLock)
+            {
+                _receivedBytes += stats.ReceivedBytes;
+                _receivedPixels += stats.ReceivedPixels;
+                _sentPixels += stats.SentPixels;
+            }
+        }
+
         public static Stats GetStats()
         {
             return new Stats(_receivedBytes, _receivedPixels, _sentPixels, _pixelFlutConnectionCount);

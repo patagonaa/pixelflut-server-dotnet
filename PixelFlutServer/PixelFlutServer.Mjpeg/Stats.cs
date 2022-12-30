@@ -5,7 +5,7 @@
         public ulong ReceivedBytes { get; }
         public ulong ReceivedPixels { get; }
         public ulong SentPixels { get; }
-        public int PixelFlutConnections { get; set; }
+        public int PixelFlutConnections { get; }
 
         public Stats(ulong receivedBytes, ulong receivedPixels, ulong sentPixels, int pixelFlutConnections)
         {

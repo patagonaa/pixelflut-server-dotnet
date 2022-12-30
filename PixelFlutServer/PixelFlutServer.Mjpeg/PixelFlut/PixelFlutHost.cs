@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using Prometheus;
 using System;
 using System.Collections.Generic;
@@ -48,14 +49,21 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            await LoadImage();
+            try
+            {
+                await LoadPersistence();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error while loading persistence");
+            }
 
             _listener.Start();
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             Task.Factory.StartNew(() => PublishFrameWorker(), TaskCreationOptions.LongRunning);
             Task.Factory.StartNew(() => ConnectionAcceptWorker(), TaskCreationOptions.LongRunning);
             Task.Factory.StartNew(() => PrintStatsWorker(), TaskCreationOptions.LongRunning);
-            Task.Factory.StartNew(() => SaveImageWorker(), TaskCreationOptions.LongRunning);
+            Task.Factory.StartNew(() => SavePersistenceWorker(), TaskCreationOptions.LongRunning);
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         }
 
@@ -64,34 +72,44 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             _listener.Stop();
             _cts.Cancel();
 
-            await SaveImage();
+            await SavePersistence();
         }
 
-        private async Task LoadImage()
+        private async Task LoadPersistence()
         {
-            var path = Path.Combine(_config.PersistPath, "image.raw");
-            if (File.Exists(path))
+            var imagePath = Path.Combine(_config.PersistPath, "image.raw");
+            if (File.Exists(imagePath))
             {
-                var fileBytes = await File.ReadAllBytesAsync(path);
+                var fileBytes = await File.ReadAllBytesAsync(imagePath);
                 if (fileBytes.Length == _pixels.Length)
                     Array.Copy(fileBytes, _pixels, fileBytes.Length);
             }
+
+            var statsPath = Path.Combine(_config.PersistPath, "stats.json");
+            if (File.Exists(statsPath))
+            {
+                var stats = JsonConvert.DeserializeObject<Stats>(await File.ReadAllTextAsync(statsPath));
+                StatsHub.SetStats(stats);
+            }
         }
 
-        private async Task SaveImage()
+        private async Task SavePersistence()
         {
             Directory.CreateDirectory(_config.PersistPath);
-            var path = Path.Combine(_config.PersistPath, "image.raw");
-            await File.WriteAllBytesAsync(path, _pixels);
+            var imagePath = Path.Combine(_config.PersistPath, "image.raw");
+            await File.WriteAllBytesAsync(imagePath, _pixels);
+
+            var statsPath = Path.Combine(_config.PersistPath, "stats.json");
+            await File.WriteAllTextAsync(statsPath, JsonConvert.SerializeObject(StatsHub.GetStats()));
         }
 
-        private async Task SaveImageWorker()
+        private async Task SavePersistenceWorker()
         {
             while (!_cts.IsCancellationRequested)
             {
                 try
                 {
-                    await SaveImage();
+                    await SavePersistence();
                 }
                 catch (Exception ex)
                 {
