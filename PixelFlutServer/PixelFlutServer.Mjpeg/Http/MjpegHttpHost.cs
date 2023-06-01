@@ -32,8 +32,8 @@ namespace PixelFlutServer.Mjpeg.Http
         private readonly int _height;
         private readonly IList<MjpegConnectionInfo> _mjpegConnectionInfos = new List<MjpegConnectionInfo>();
 
-        private readonly Gauge _connectionGauge = Metrics.CreateGauge("http_connections", "Number of HTTP connections", "endpoint");
-        private readonly Counter _connectionCounter = Metrics.CreateCounter("http_connections_total", "Number of HTTP connections since this instance started", "endpoint");
+        private readonly Gauge _connectionGauge = Metrics.CreateGauge("http_connections", "Number of running HTTP requests", "endpoint");
+        private readonly Counter _connectionCounter = Metrics.CreateCounter("http_connections_total", "Number of HTTP requests since this instance started", "endpoint");
 
         public MjpegHttpHost(ILogger<MjpegHttpHost> logger, IOptions<PixelFlutServerConfig> options)
         {
