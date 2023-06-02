@@ -3,16 +3,16 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Prometheus;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
@@ -64,16 +64,14 @@ namespace PixelFlutServer.Mjpeg.Http
             return Task.CompletedTask;
         }
 
-        [SupportedOSPlatform("windows")]
         private void GetFrameWorker()
         {
-            using (var bitmap = new Bitmap(_width, _height, PixelFormat.Format24bppRgb))
+            using (var image = new Image<Bgr24>(_config.Width, _config.Height))
             {
+
                 using (var ms = new MemoryStream())
                 {
-                    var encoder = ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
-                    long quality = _config.JpegQualityPercent;
-                    var encParams = new EncoderParameters { Param = new[] { new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality) } };
+                    var encoder = new JpegEncoder() { Quality = _config.JpegQualityPercent };
 
                     var registration = _frameHub.Register();
 
@@ -84,28 +82,40 @@ namespace PixelFlutServer.Mjpeg.Http
 
                         var frame = registration.GetCurrentFrame();
 
-                        var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, Const.FramePixelFormat);
-                        Marshal.Copy(frame, 0, data.Scan0, _width * _height * Const.FrameBytesPerPixel);
-                        bitmap.UnlockBits(data);
+                        image.ProcessPixelRows(accessor =>
+                        {
+                            for (int y = 0; y < accessor.Height; y++)
+                            {
+                                var rowSpan = accessor.GetRowSpan(y);
+                                for (int x = 0; x < accessor.Height; x++)
+                                {
+                                    var sourceIdx = (y * _config.Width + x) * Const.FrameBytesPerPixel;
+                                    rowSpan[x].B = frame[sourceIdx];
+                                    rowSpan[x].G = frame[sourceIdx + 1];
+                                    rowSpan[x].R = frame[sourceIdx + 2];
+                                }
+                            }
+                        });
 
                         if (!string.IsNullOrWhiteSpace(_config.AdditionalText))
                         {
-                            using (var g = Graphics.FromImage(bitmap))
-                            {
-                                var font = new Font("Consolas", _config.AdditionalTextSize);
-                                var brush = new SolidBrush(Color.White);
-                                var textSize = g.MeasureString(_config.AdditionalText, font);
-                                var sizeX = (int)Math.Ceiling(textSize.Width);
-                                var sizeY = (int)Math.Ceiling(textSize.Height);
+                            throw new NotSupportedException("Additional Text not supported yet");
+                            // using (var g = Graphics.FromImage(bitmap))
+                            // {
+                            //     var font = new Font("Consolas", _config.AdditionalTextSize);
+                            //     var brush = new SolidBrush(Color.White);
+                            //     var textSize = g.MeasureString(_config.AdditionalText, font);
+                            //     var sizeX = (int)Math.Ceiling(textSize.Width);
+                            //     var sizeY = (int)Math.Ceiling(textSize.Height);
 
-                                g.FillRectangle(new SolidBrush(Color.Black), 0, _height - sizeY, sizeX, sizeY);
-                                g.DrawString(_config.AdditionalText, font, brush, 0, _height - sizeY);
-                            }
+                            //     g.FillRectangle(new SolidBrush(Color.Black), 0, _height - sizeY, sizeX, sizeY);
+                            //     g.DrawString(_config.AdditionalText, font, brush, 0, _height - sizeY);
+                            // }
                         }
 
                         ms.Position = 0;
                         ms.SetLength(0);
-                        bitmap.Save(ms, encoder, encParams);
+                        image.SaveAsJpeg(ms, encoder);
                         _currentJpeg = ms.ToArray();
 
                         lock (_mjpegConnectionInfos)

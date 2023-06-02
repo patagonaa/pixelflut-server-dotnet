@@ -62,7 +62,7 @@ namespace PixelFlutServer.Mjpeg.Ndi
                 {
                     for (int x = 0; x < width; x++)
                     {
-                        var idx = (y * width + x) * 3;
+                        var idx = (y * width + x) * Const.FrameBytesPerPixel;
                         buffer[y, x].B = frame[idx];
                         buffer[y, x].G = frame[idx + 1];
                         buffer[y, x].R = frame[idx + 2];
