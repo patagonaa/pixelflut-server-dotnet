@@ -87,7 +87,7 @@ namespace PixelFlutServer.Mjpeg.Http
                             for (int y = 0; y < accessor.Height; y++)
                             {
                                 var rowSpan = accessor.GetRowSpan(y);
-                                for (int x = 0; x < accessor.Height; x++)
+                                for (int x = 0; x < accessor.Width; x++)
                                 {
                                     var sourceIdx = (y * _config.Width + x) * Const.FrameBytesPerPixel;
                                     rowSpan[x].B = frame[sourceIdx];
