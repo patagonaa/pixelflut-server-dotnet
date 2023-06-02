@@ -50,11 +50,6 @@ namespace PixelFlutServer.Mjpeg.Ndi
 
             while (!_cts.IsCancellationRequested)
             {
-                if (sender.Connections == 0)
-                {
-                    Thread.Sleep(1000);
-                    continue;
-                }
                 registration.WaitForFrame(_cts.Token, 1000);
                 var frame = registration.GetCurrentFrame();
 
@@ -70,6 +65,10 @@ namespace PixelFlutServer.Mjpeg.Ndi
                 }
 
                 sender.Send(vf);
+                if (sender.Connections == 0)
+                {
+                    Thread.Sleep(1000);
+                }
             }
         }
     }

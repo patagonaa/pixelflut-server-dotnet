@@ -66,7 +66,7 @@ namespace PixelFlutServer.Mjpeg.Http
 
         private void GetFrameWorker()
         {
-            using (var image = new Image<Bgr24>(_config.Width, _config.Height))
+            using (var image = new Image<Bgr24>(_width, _height))
             {
 
                 using (var ms = new MemoryStream())
@@ -89,7 +89,7 @@ namespace PixelFlutServer.Mjpeg.Http
                                 var rowSpan = accessor.GetRowSpan(y);
                                 for (int x = 0; x < accessor.Width; x++)
                                 {
-                                    var sourceIdx = (y * _config.Width + x) * Const.FrameBytesPerPixel;
+                                    var sourceIdx = (y * _width + x) * Const.FrameBytesPerPixel;
                                     rowSpan[x].B = frame[sourceIdx];
                                     rowSpan[x].G = frame[sourceIdx + 1];
                                     rowSpan[x].R = frame[sourceIdx + 2];
