@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PixelFlutServer.Mjpeg.Http;
+using PixelFlutServer.Mjpeg.Ndi;
 using PixelFlutServer.Mjpeg.PixelFlut;
 using Serilog;
 using System.Threading.Tasks;
@@ -41,6 +42,7 @@ namespace PixelFlutServer.Mjpeg
             services.AddHostedService<PixelFlutHost>();
             services.AddHostedService<MjpegHttpHost>();
             services.AddHostedService<MetricsHost>();
+            services.AddHostedService<NdiHost>();
         }
 
         private static void ConfigureAppConfiguration(HostBuilderContext ctx, IConfigurationBuilder configBuilder)
