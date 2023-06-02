@@ -20,6 +20,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private readonly TcpListener _listener;
         private readonly ILogger<PixelFlutHost> _logger;
         private readonly IServiceProvider _serviceProvider;
+        private readonly FrameHub _frameHub;
         private readonly int _frameMs;
         private readonly int _width;
         private readonly int _height;
@@ -30,7 +31,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         private readonly Gauge _connectionCounter = Metrics.CreateGauge("pixelflut_connections", "Number of Pixelflut connections");
         private readonly Counter _connectionCounterTotal = Metrics.CreateCounter("pixelflut_connections_total", "Number of Pixelflut connections since this instance started");
 
-        public PixelFlutHost(ILogger<PixelFlutHost> logger, IServiceProvider serviceProvider, IOptions<PixelFlutServerConfig> options)
+        public PixelFlutHost(ILogger<PixelFlutHost> logger, IServiceProvider serviceProvider, IOptions<PixelFlutServerConfig> options, FrameHub frameHub)
         {
             var config = options.Value;
             _config = config;
@@ -38,7 +39,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             _listener = TcpListener.Create(config.PixelFlutPort);
             _logger = logger;
             _serviceProvider = serviceProvider;
-
+            _frameHub = frameHub;
             _frameMs = (int)(1000.0 / config.MaxFps);
 
             _width = config.Width;
@@ -145,7 +146,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                 sw.Restart();
                 await _frameSemaphore.WaitAsync(_cts.Token);
                 Thread.MemoryBarrier();
-                FrameHub.SetFrame(_pixels);
+                _frameHub.SetFrame(_pixels);
 
                 await Task.Delay(Math.Max(0, _frameMs - (int)sw.ElapsedMilliseconds));
             }

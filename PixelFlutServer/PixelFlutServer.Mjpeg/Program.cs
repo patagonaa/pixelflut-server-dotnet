@@ -36,6 +36,8 @@ namespace PixelFlutServer.Mjpeg
             services.Configure<PixelFlutServerConfig>(ctx.Configuration);
 
             services.AddTransient<IPixelFlutHandler, PixelFlutSpanHandler>();
+            services.AddSingleton<FrameHub>();
+
             services.AddHostedService<PixelFlutHost>();
             services.AddHostedService<MjpegHttpHost>();
             services.AddHostedService<MetricsHost>();

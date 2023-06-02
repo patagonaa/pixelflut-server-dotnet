@@ -13,6 +13,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +26,7 @@ namespace PixelFlutServer.Mjpeg.Http
         private readonly PixelFlutServerConfig _config;
         private readonly HttpListener _listener;
         private readonly ILogger<MjpegHttpHost> _logger;
+        private readonly FrameHub _frameHub;
         private readonly CancellationTokenSource _cts = new();
         private byte[] _currentJpeg = null;
 
@@ -35,14 +37,14 @@ namespace PixelFlutServer.Mjpeg.Http
         private readonly Gauge _connectionGauge = Metrics.CreateGauge("http_connections", "Number of running HTTP requests", "endpoint");
         private readonly Counter _connectionCounter = Metrics.CreateCounter("http_connections_total", "Number of HTTP requests since this instance started", "endpoint");
 
-        public MjpegHttpHost(ILogger<MjpegHttpHost> logger, IOptions<PixelFlutServerConfig> options)
+        public MjpegHttpHost(ILogger<MjpegHttpHost> logger, IOptions<PixelFlutServerConfig> options, FrameHub frameHub)
         {
             _config = options.Value;
 
             _listener = new HttpListener();
             _listener.Prefixes.Add($"http://+:{_config.MjpegPort}/");
             _logger = logger;
-
+            _frameHub = frameHub;
             _width = _config.Width;
             _height = _config.Height;
         }
@@ -62,6 +64,7 @@ namespace PixelFlutServer.Mjpeg.Http
             return Task.CompletedTask;
         }
 
+        [SupportedOSPlatform("windows")]
         private void GetFrameWorker()
         {
             using (var bitmap = new Bitmap(_width, _height, PixelFormat.Format24bppRgb))
@@ -72,48 +75,39 @@ namespace PixelFlutServer.Mjpeg.Http
                     long quality = _config.JpegQualityPercent;
                     var encParams = new EncoderParameters { Param = new[] { new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality) } };
 
+                    var registration = _frameHub.Register();
+
                     while (!_cts.IsCancellationRequested)
                     {
-                        byte[] frame = null;
-
                         // send frame every now and then even if there's no new one available to give the TcpClient a chance to clean up old connections
-                        try
-                        {
-                            frame = FrameHub.WaitForFrame(_cts.Token, 10000);
-                        }
-                        catch (TimeoutException)
-                        {
-                        }
-                        catch (OperationCanceledException)
-                        {
-                        }
+                        registration.WaitForFrame(_cts.Token, 10000);
 
-                        if (frame != null)
-                        {
-                            var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, Const.FramePixelFormat);
-                            Marshal.Copy(frame, 0, data.Scan0, _width * _height * Const.FrameBytesPerPixel);
-                            bitmap.UnlockBits(data);
+                        var frame = registration.GetCurrentFrame();
 
-                            if (!string.IsNullOrWhiteSpace(_config.AdditionalText))
+                        var data = bitmap.LockBits(new Rectangle(0, 0, _width, _height), ImageLockMode.WriteOnly, Const.FramePixelFormat);
+                        Marshal.Copy(frame, 0, data.Scan0, _width * _height * Const.FrameBytesPerPixel);
+                        bitmap.UnlockBits(data);
+
+                        if (!string.IsNullOrWhiteSpace(_config.AdditionalText))
+                        {
+                            using (var g = Graphics.FromImage(bitmap))
                             {
-                                using (var g = Graphics.FromImage(bitmap))
-                                {
-                                    var font = new Font("Consolas", _config.AdditionalTextSize);
-                                    var brush = new SolidBrush(Color.White);
-                                    var textSize = g.MeasureString(_config.AdditionalText, font);
-                                    var sizeX = (int)Math.Ceiling(textSize.Width);
-                                    var sizeY = (int)Math.Ceiling(textSize.Height);
+                                var font = new Font("Consolas", _config.AdditionalTextSize);
+                                var brush = new SolidBrush(Color.White);
+                                var textSize = g.MeasureString(_config.AdditionalText, font);
+                                var sizeX = (int)Math.Ceiling(textSize.Width);
+                                var sizeY = (int)Math.Ceiling(textSize.Height);
 
-                                    g.FillRectangle(new SolidBrush(Color.Black), 0, _height - sizeY, sizeX, sizeY);
-                                    g.DrawString(_config.AdditionalText, font, brush, 0, _height - sizeY);
-                                }
+                                g.FillRectangle(new SolidBrush(Color.Black), 0, _height - sizeY, sizeX, sizeY);
+                                g.DrawString(_config.AdditionalText, font, brush, 0, _height - sizeY);
                             }
-
-                            ms.Position = 0;
-                            ms.SetLength(0);
-                            bitmap.Save(ms, encoder, encParams);
-                            _currentJpeg = ms.ToArray();
                         }
+
+                        ms.Position = 0;
+                        ms.SetLength(0);
+                        bitmap.Save(ms, encoder, encParams);
+                        _currentJpeg = ms.ToArray();
+
                         lock (_mjpegConnectionInfos)
                         {
                             foreach (var info in _mjpegConnectionInfos)

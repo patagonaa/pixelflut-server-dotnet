@@ -1,30 +1,73 @@
-﻿using System;
+﻿using Microsoft.Extensions.Options;
+using System;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace PixelFlutServer.Mjpeg
 {
-    public static class FrameHub
+    public class FrameHub
     {
-        private static byte[] _currentFrame = null;
-        private static readonly SemaphoreSlim _frameSemaphore = new SemaphoreSlim(0, 1);
+        private readonly byte[] _currentFrame;
+        private readonly PixelFlutServerConfig _config;
+        private List<FrameRegistration> _registrations = new();
 
-        public static byte[] WaitForFrame(CancellationToken token, int timeoutMs)
+        public FrameHub(IOptions<PixelFlutServerConfig> config)
         {
-            if(!_frameSemaphore.Wait(timeoutMs, token))
-            {
-                throw new TimeoutException();
-            }
-            return _currentFrame;
+            _config = config.Value;
+            _currentFrame = new byte[_config.Width * _config.Height * 3];
         }
 
-        public static void SetFrame(byte[] frame)
+        public FrameRegistration Register()
         {
-            if (_currentFrame == null)
-                _currentFrame = new byte[frame.Length];
+            var reg = new FrameRegistration(_currentFrame);
+            _registrations.Add(reg);
+            return reg;
+        }
+
+        public void SetFrame(byte[] frame)
+        {
+            if (frame.Length != _currentFrame.Length)
+                throw new ArgumentException("Invalid Frame length!");
+
             Array.Copy(frame, _currentFrame, frame.Length);
-            if (_frameSemaphore.CurrentCount == 0)
+            foreach (var registration in _registrations)
             {
-                _frameSemaphore.Release();
+                registration.AnnonunceFrame();
+            }
+        }
+
+        public class FrameRegistration
+        {
+            private readonly SemaphoreSlim _semaphore = new(1, 1);
+            private readonly byte[] _frame;
+
+            public FrameRegistration(byte[] frame)
+            {
+                _frame = frame;
+            }
+
+            public bool WaitForFrame(CancellationToken token, int timeoutMs)
+            {
+                return _semaphore.Wait(timeoutMs, token);
+            }
+
+            public byte[] GetCurrentFrame()
+            {
+                return _frame;
+            }
+
+            internal void AnnonunceFrame()
+            {
+                try
+                {
+                    if (_semaphore.CurrentCount == 0)
+                    {
+                        _semaphore.Release();
+                    }
+                }
+                catch (SemaphoreFullException)
+                {
+                }
             }
         }
     }
