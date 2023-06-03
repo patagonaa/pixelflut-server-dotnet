@@ -3,9 +3,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Prometheus;
+using SixLabors.Fonts;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -66,75 +69,84 @@ namespace PixelFlutServer.Mjpeg.Http
 
         private void GetFrameWorker()
         {
-            using (var image = new Image<Bgr24>(_width, _height))
+            try
             {
+                using var image = new Image<Bgr24>(_width, _height);
+                using var ms = new MemoryStream();
+                var encoder = new JpegEncoder() { Quality = _config.JpegQualityPercent };
 
-                using (var ms = new MemoryStream())
+                var fc = new FontCollection();
+                fc.AddSystemFonts();
+
+                FontFamily family;
+                if (!fc.TryGet("Consolas", out family) && !fc.TryGet("Hack", out family))
                 {
-                    var encoder = new JpegEncoder() { Quality = _config.JpegQualityPercent };
+                    throw new Exception("Font not found");
+                }
 
-                    var registration = _frameHub.Register();
+                var font = family.CreateFont(_config.AdditionalTextSize);
 
-                    while (!_cts.IsCancellationRequested)
+                var registration = _frameHub.Register();
+
+                while (!_cts.IsCancellationRequested)
+                {
+                    // send frame every now and then even if there's no new one available to give the TcpClient a chance to clean up old connections
+                    registration.WaitForFrame(_cts.Token, 10000);
+
+                    var frame = registration.GetCurrentFrame();
+
+                    image.ProcessPixelRows(accessor =>
                     {
-                        // send frame every now and then even if there's no new one available to give the TcpClient a chance to clean up old connections
-                        registration.WaitForFrame(_cts.Token, 10000);
-
-                        var frame = registration.GetCurrentFrame();
-
-                        image.ProcessPixelRows(accessor =>
+                        for (int y = 0; y < accessor.Height; y++)
                         {
-                            for (int y = 0; y < accessor.Height; y++)
+                            var rowSpan = accessor.GetRowSpan(y);
+                            for (int x = 0; x < accessor.Width; x++)
                             {
-                                var rowSpan = accessor.GetRowSpan(y);
-                                for (int x = 0; x < accessor.Width; x++)
-                                {
-                                    var sourceIdx = (y * _width + x) * Const.FrameBytesPerPixel;
-                                    rowSpan[x].B = frame[sourceIdx];
-                                    rowSpan[x].G = frame[sourceIdx + 1];
-                                    rowSpan[x].R = frame[sourceIdx + 2];
-                                }
+                                var sourceIdx = (y * _width + x) * Const.FrameBytesPerPixel;
+                                rowSpan[x].B = frame[sourceIdx];
+                                rowSpan[x].G = frame[sourceIdx + 1];
+                                rowSpan[x].R = frame[sourceIdx + 2];
                             }
-                        });
-
-                        if (!string.IsNullOrWhiteSpace(_config.AdditionalText))
-                        {
-                            throw new NotSupportedException("Additional Text not supported yet");
-                            // using (var g = Graphics.FromImage(bitmap))
-                            // {
-                            //     var font = new Font("Consolas", _config.AdditionalTextSize);
-                            //     var brush = new SolidBrush(Color.White);
-                            //     var textSize = g.MeasureString(_config.AdditionalText, font);
-                            //     var sizeX = (int)Math.Ceiling(textSize.Width);
-                            //     var sizeY = (int)Math.Ceiling(textSize.Height);
-
-                            //     g.FillRectangle(new SolidBrush(Color.Black), 0, _height - sizeY, sizeX, sizeY);
-                            //     g.DrawString(_config.AdditionalText, font, brush, 0, _height - sizeY);
-                            // }
                         }
+                    });
 
-                        ms.Position = 0;
-                        ms.SetLength(0);
-                        image.SaveAsJpeg(ms, encoder);
-                        _currentJpeg = ms.ToArray();
+                    if (!string.IsNullOrWhiteSpace(_config.AdditionalText))
+                    {
+                        var textOptions = new TextOptions(font);
+                        var textMeasured = TextMeasurer.Measure(_config.AdditionalText, textOptions);
+                        var textPos = new PointF(0, _height - textMeasured.Height);
 
-                        lock (_mjpegConnectionInfos)
+                        image.Mutate(x => x
+                            .Fill(Color.Black, new RectangleF(textPos, new SizeF(textMeasured.Width, textMeasured.Height)))
+                            .DrawText(_config.AdditionalText, font, Color.White, textPos));
+                    }
+
+                    ms.Position = 0;
+                    ms.SetLength(0);
+                    image.SaveAsJpeg(ms, encoder);
+                    _currentJpeg = ms.ToArray();
+
+                    lock (_mjpegConnectionInfos)
+                    {
+                        foreach (var info in _mjpegConnectionInfos)
                         {
-                            foreach (var info in _mjpegConnectionInfos)
+                            var semaphore = info.FrameWaitSemaphore;
+                            try
                             {
-                                var semaphore = info.FrameWaitSemaphore;
-                                try
-                                {
-                                    if (semaphore.CurrentCount == 0)
-                                        semaphore.Release();
-                                }
-                                catch (SemaphoreFullException)
-                                {
-                                }
+                                if (semaphore.CurrentCount == 0)
+                                    semaphore.Release();
+                            }
+                            catch (SemaphoreFullException)
+                            {
                             }
                         }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occured in GetFrameWorker");
+                throw;
             }
         }
 
