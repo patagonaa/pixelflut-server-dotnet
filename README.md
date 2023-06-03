@@ -9,21 +9,17 @@ This is a Pixelflut server (see [here](https://github.com/defnull/pixelflut) or 
     - `OFFSET X Y` to set an offset to apply to pixels sent in the future
     - `HELP` to get a short help text about pixelflut
 - simple output viewing via MJPEG (supported on all major browsers)
+- optional NDI output
 - Prometheus metrics (pixels sent/received, bytes received, current number of Pixelflut and HTTP connections, etc.)
 
 ## Usage
 If you're using Docker, `docker-compose up --build -d` should get you up and running in a few seconds.
 
-If  you don't want to use Docker, you can either run this on Windows using Visual Studio or on Windows/Linux/macOS using [.NET SDK](https://docs.microsoft.com/de-de/dotnet/core/install/linux) and `libgdiplus`. Settings can also be set via environment variables.
+If  you don't want to use Docker, you can either run this on Windows using Visual Studio or on Windows/Linux/macOS using [.NET SDK](https://docs.microsoft.com/de-de/dotnet/core/install/linux). Settings can also be set via environment variables.
 
-Installation on Ubuntu (e.g. 20.04):
+Installation on Ubuntu (e.g. 22.04):
 ```bash
-sudo add-apt-repository universe
-wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-sudo dpkg -i packages-microsoft-prod.deb
-rm packages-microsoft-prod.deb
-
-sudo apt update && sudo apt install dotnet-sdk-5.0 libgdiplus
+sudo apt update && sudo apt install dotnet-sdk-6.0
 ```
 
 Example startup with HTTP port 8080, Pixelflut port 1234 (for more config options see [PixelFlutServerConfig.cs](https://github.com/patagonaa/pixelflut-server-dotnet/blob/main/PixelFlutServer/PixelFlutServer.Mjpeg/PixelFlutServerConfig.cs)):
