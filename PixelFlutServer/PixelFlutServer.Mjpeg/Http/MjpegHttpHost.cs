@@ -76,17 +76,6 @@ namespace PixelFlutServer.Mjpeg.Http
                 using var ms = new MemoryStream();
                 var encoder = new JpegEncoder() { Quality = _config.JpegQualityPercent };
 
-                var fc = new FontCollection();
-                fc.AddSystemFonts();
-
-                FontFamily family;
-                if (!fc.TryGet("Consolas", out family) && !fc.TryGet("Hack", out family))
-                {
-                    throw new Exception("Font not found");
-                }
-
-                var font = family.CreateFont(_config.AdditionalTextSize);
-
                 var registration = _frameHub.Register();
 
                 while (!_cts.IsCancellationRequested)
@@ -106,17 +95,6 @@ namespace PixelFlutServer.Mjpeg.Http
                             frameSpan.Slice(y * accessor.Width, accessor.Width).CopyTo(rowAccessor);
                         }
                     });
-
-                    if (!string.IsNullOrWhiteSpace(_config.AdditionalText))
-                    {
-                        var textOptions = new TextOptions(font);
-                        var textMeasured = TextMeasurer.Measure(_config.AdditionalText, textOptions);
-                        var textPos = new PointF(0, _height - textMeasured.Height);
-
-                        image.Mutate(x => x
-                            .Fill(Color.Black, new RectangleF(textPos, new SizeF(textMeasured.Width, textMeasured.Height)))
-                            .DrawText(_config.AdditionalText, font, Color.White, textPos));
-                    }
 
                     ms.Position = 0;
                     ms.SetLength(0);
