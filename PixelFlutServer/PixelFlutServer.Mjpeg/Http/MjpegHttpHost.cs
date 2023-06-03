@@ -16,6 +16,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
@@ -97,16 +98,12 @@ namespace PixelFlutServer.Mjpeg.Http
 
                     image.ProcessPixelRows(accessor =>
                     {
+                        var frameSpan = MemoryMarshal.Cast<byte, Bgr24>(frame);
+
                         for (int y = 0; y < accessor.Height; y++)
                         {
-                            var rowSpan = accessor.GetRowSpan(y);
-                            for (int x = 0; x < accessor.Width; x++)
-                            {
-                                var sourceIdx = (y * _width + x) * Const.FrameBytesPerPixel;
-                                rowSpan[x].B = frame[sourceIdx];
-                                rowSpan[x].G = frame[sourceIdx + 1];
-                                rowSpan[x].R = frame[sourceIdx + 2];
-                            }
+                            var rowAccessor = accessor.GetRowSpan(y);
+                            frameSpan.Slice(y * accessor.Width, accessor.Width).CopyTo(rowAccessor);
                         }
                     });
 
