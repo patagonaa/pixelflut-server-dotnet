@@ -15,17 +15,17 @@ namespace PixelFlutServer.Mjpeg
     {
         private readonly byte[] _currentFrameIn;
         private readonly byte[] _currentFrameOut;
-        private readonly Font _font;
+        private readonly Lazy<Font> _font;
         private readonly Image<Bgr24> _image;
         private readonly PixelFlutServerConfig _config;
-        private List<FrameRegistration> _registrations = new();
+        private readonly List<FrameRegistration> _registrations = new();
 
         public FrameHub(IOptions<PixelFlutServerConfig> config)
         {
             _config = config.Value;
             _currentFrameIn = new byte[_config.Width * _config.Height * Const.FrameBytesPerPixel];
             _currentFrameOut = new byte[_config.Width * _config.Height * Const.FrameBytesPerPixel];
-            _font = GetFont();
+            _font = new Lazy<Font>(() => GetFont());
             _image = new Image<Bgr24>(_config.Width, _config.Height);
         }
 
@@ -70,7 +70,7 @@ namespace PixelFlutServer.Mjpeg
                     }
                 });
 
-                var textOptions = new TextOptions(_font)
+                var textOptions = new TextOptions(_font.Value)
                 {
                     TextAlignment = TextAlignment.Start,
                     HorizontalAlignment = HorizontalAlignment.Left,
