@@ -15,30 +15,30 @@
             margin-right: 5px;
         }
 
-        :fullscreen #bottom {
+        body.fullscreen #bottom {
             display: none;
         }
 
-        :fullscreen body {
+        body.fullscreen {
             margin: 0;
             overflow: hidden;
             background: #000;
         }
 
-        :fullscreen #stream {
+        body.fullscreen #stream {
             position: absolute;
             width: 100%;
             height: 100%;
             display: block;
         }
 
-            :fullscreen #stream.pixelated {
-                image-rendering: pixelated;
-            }
+        body.fullscreen #stream.pixelated {
+            image-rendering: pixelated;
+        }
 
-            :fullscreen #stream.contain {
-                object-fit: contain;
-            }
+        body.fullscreen #stream.contain {
+            object-fit: contain;
+        }
     </style>
     <script>
         class StatsHandler {
@@ -127,20 +127,31 @@
             }
         }
 
-        function fullScreen() {
-            const img = document.getElementById('stream');
-            const pixelated = document.getElementById('pixelated').checked;
-            const objectFit = document.getElementById('objectFit').value;
+        class FullscreenHandler {
+            constructor() {
+                document.documentElement.addEventListener('fullscreenchange', () => this.setFullscreenMode(document.fullscreenElement != null));
+            }
 
-            img.style.imageRendering = pixelated ? 'pixelated' : 'smooth';
-            img.style.objectFit = objectFit;
+            setFullscreenMode(active) {
+                const img = document.getElementById('stream');
+                const pixelated = document.getElementById('pixelated').checked;
+                const objectFit = document.getElementById('objectFit').value;
 
-            document.documentElement.requestFullscreen();
+                img.style.imageRendering = pixelated ? 'pixelated' : 'smooth';
+                img.style.objectFit = objectFit;
+
+                document.body.classList.toggle('fullscreen', active);
+            }
         }
 
         window.onload = () => {
             let handler = new StatsHandler(document.getElementById('stats'));
             handler.run();
+
+            let fullscreenHandler = new FullscreenHandler();
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('full') == 1)
+                fullscreenHandler.setFullscreenMode(true);
         };
     </script>
 </head>
@@ -159,7 +170,7 @@
                             <option value="cover">cover (clip)</option>
                         </select>
                     </label>
-                    <button onclick="fullScreen()">Go</button>
+                    <button onclick="document.documentElement.requestFullscreen()">Go</button>
                 </td>
             </tr>
         </table>
