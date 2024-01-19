@@ -152,6 +152,7 @@ namespace PixelFlutServer.Mjpeg.Http
             const string streamEndpoint = "/stream.jpg";
             const string htmlEndpoint = "/";
             const string statsEndpoint = "/stats.json";
+            const string textEndpoint = "/text.txt";
 
             var handledEndpoints = new[] { streamEndpoint, htmlEndpoint, statsEndpoint };
 
@@ -188,6 +189,13 @@ namespace PixelFlutServer.Mjpeg.Http
                                 await outputStream.WriteAsync(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(StatsHub.GetStats())));
                             }
                             break;
+                        case textEndpoint when !string.IsNullOrEmpty(_config.WebsiteText):
+                            {
+                                context.Response.ContentType = "text/plain";
+                                using var outputStream = context.Response.OutputStream;
+                                await outputStream.WriteAsync(Encoding.UTF8.GetBytes(_config.WebsiteText));
+                            }
+                            break;
                         default:
                             {
                                 context.Response.StatusCode = 404;
@@ -209,6 +217,7 @@ namespace PixelFlutServer.Mjpeg.Http
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Something went wrong at HTTP connection {Endpoint}", context.Request.RemoteEndPoint);
+                    context.Response.StatusCode = 500;
                 }
             }
         }

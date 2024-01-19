@@ -29,5 +29,9 @@
         /// </summary>
         public string AdditionalText { get; set; }
         public int AdditionalTextSize { get; set; } = 14;
+        /// <summary>
+        /// Text to show on the website
+        /// </summary>
+        public string WebsiteText { get; set; }
     }
 }

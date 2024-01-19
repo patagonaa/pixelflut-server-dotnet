@@ -144,9 +144,20 @@
             }
         }
 
+        async function updateText() {
+            var response = await fetch('text.txt');
+            if (response.ok) {
+                let textElement = document.getElementById('text');
+                let text = await response.text();
+                textElement.innerText = text;
+            }
+        }
+
         window.onload = () => {
-            let handler = new StatsHandler(document.getElementById('stats'));
-            handler.run();
+            let statsHandler = new StatsHandler(document.getElementById('stats'));
+            statsHandler.run();
+
+            updateText();
 
             let fullscreenHandler = new FullscreenHandler();
             const urlParams = new URLSearchParams(window.location.search);
@@ -174,6 +185,7 @@
                 </td>
             </tr>
         </table>
+        <p id="text"></p>
         <div id="stats">This is where I would put the stats... IF I HAD JAVASCRIPT!</div>
     </div>
 </body>
