@@ -17,12 +17,30 @@ If you're using Docker, `docker-compose up --build -d` should get you up and run
 
 If  you don't want to use Docker, you can either run this on Windows using Visual Studio or on Windows/Linux/macOS using [.NET SDK](https://docs.microsoft.com/de-de/dotnet/core/install/linux). Settings can also be set via environment variables.
 
-Installation on Ubuntu (e.g. 22.04):
+### Installation on Ubuntu (e.g. 22.04):
 ```bash
 sudo apt update && sudo apt install dotnet-sdk-6.0
 ```
+Don't forget to turn off the standby timeout in the energy saving options!
 
-Example startup with HTTP port 8080, Pixelflut port 1234 (for more config options see [PixelFlutServerConfig.cs](https://github.com/patagonaa/pixelflut-server-dotnet/blob/main/PixelFlutServer/PixelFlutServer.Mjpeg/PixelFlutServerConfig.cs)):
+#### NDI (hacky):
+```bash
+wget https://downloads.ndi.tv/SDK/NDI_SDK_Linux/Install_NDI_SDK_v6_Linux.tar.gz
+tar -xzf Install_NDI_SDK_v6_Linux.tar.gz
+./Install_NDI_SDK_v6_Linux.sh
+cp 'NDI SDK for Linux/lib/x86_64-linux-gnu/libndi.so.6.0.0' '/lib/Processing.NDI.Lib.x64.dll'
+```
+### Startup
+#### Options
+- `Width=1280`
+- `Height=720`
+- `EnableNdi=true`
+- `AdditionalText='Hello World!'`
+
+see [PixelFlutServerConfig.cs](https://github.com/patagonaa/pixelflut-server-dotnet/blob/main/PixelFlutServer/PixelFlutServer.Mjpeg/PixelFlutServerConfig.cs) for more
+
+#### Example
+Example startup with HTTP port 8080, Pixelflut port 1234:
 ```bash
 cd PixelFlutServer/PixelFlutServer.Mjpeg
 MjpegPort=8080 PixelFlutPort=1234 dotnet run -c Release
