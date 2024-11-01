@@ -32,7 +32,21 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
         public async Task Handle(Stream stream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
         {
-            await Task.Factory.StartNew(() => HandleInternal(stream, endPoint, pixelBuffer, frameReadySemaphore, cancellationToken), TaskCreationOptions.LongRunning);
+            var tcs = new TaskCompletionSource<bool>();
+            var handleThread = new Thread(() =>
+                {
+                    try
+                    {
+                        HandleInternal(stream, endPoint, pixelBuffer, frameReadySemaphore, cancellationToken);
+                    }
+                    finally
+                    {
+                        tcs.SetResult(true);
+                    }
+                });
+            handleThread.Priority = ThreadPriority.BelowNormal;
+            handleThread.Start();
+            await tcs.Task;
         }
 
         private void HandleInternal(Stream netstream, EndPoint endPoint, PixelBuffer pixelBuffer, SemaphoreSlim frameReadySemaphore, CancellationToken cancellationToken)
