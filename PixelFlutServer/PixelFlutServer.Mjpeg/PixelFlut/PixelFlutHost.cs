@@ -156,7 +156,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         {
             while (!_cts.IsCancellationRequested)
             {
-                var client = await _listener.AcceptTcpClientAsync();
+                var client = await _listener.AcceptTcpClientAsync(_cts.Token);
                 _ = Task.Factory.StartNew(() => ConnectionHandler(client), TaskCreationOptions.LongRunning);
             }
         }
@@ -165,6 +165,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
         {
             var pixelFlutHandler = _serviceProvider.GetRequiredService<IPixelFlutHandler>();
 
+            using (_cts.Token.Register(() => client.Close()))
             using (client)
             {
                 client.ReceiveTimeout = 30000;
