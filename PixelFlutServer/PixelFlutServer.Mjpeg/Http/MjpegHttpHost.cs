@@ -57,7 +57,9 @@ namespace PixelFlutServer.Mjpeg.Http
         {
             _listener.Start();
             Task.Factory.StartNew(() => ConnectionAcceptWorker(), TaskCreationOptions.LongRunning);
-            Task.Factory.StartNew(() => GetFrameWorker(), TaskCreationOptions.LongRunning);
+            var frameWorkerThread = new Thread(() => GetFrameWorker());
+            frameWorkerThread.Priority = ThreadPriority.AboveNormal;
+            frameWorkerThread.Start();
             return Task.CompletedTask;
         }
 
