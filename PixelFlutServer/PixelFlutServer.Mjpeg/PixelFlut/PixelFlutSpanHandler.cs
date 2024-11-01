@@ -87,8 +87,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
 
                     if (indicesCount < 2)
                     {
-                        LogInvalidLine(endPoint, buffer, bufferPos);
-                        continue;
+                        throw new InvalidLineException(endPoint, FormatLine(buffer[..bufferPos]));
                     }
 
                     var firstPart = buffer.Slice(indices[0], indices[1] - indices[0] - 1);
@@ -99,8 +98,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                     }
                     if (firstPart.Length < 2)
                     {
-                        LogInvalidLine(endPoint, buffer, bufferPos);
-                        continue;
+                        throw new InvalidLineException(endPoint, FormatLine(buffer[..bufferPos]));
                     }
 
                     if (firstPart[0] == 'P' && firstPart[1] == 'X')
@@ -109,8 +107,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             !TryParseInt(buffer.Slice(indices[1], indices[2] - indices[1] - 1), out var x) ||
                             !TryParseInt(buffer.Slice(indices[2], indices[3] - indices[2] - 1), out var y))
                         {
-                            LogInvalidLine(endPoint, buffer, bufferPos);
-                            continue;
+                            throw new InvalidLineException(endPoint, FormatLine(buffer[..bufferPos]));
                         }
 
                         if (indicesCount == 4) // PX 1337 1234\n
@@ -135,8 +132,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                             var hasAlpha = colorSpan.Length == 8;
                             if (!uint.TryParse(colorSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint color))
                             {
-                                LogInvalidLine(endPoint, buffer, bufferPos);
-                                continue;
+                                throw new InvalidLineException(endPoint, FormatLine(buffer[..bufferPos]));
                             }
 
                             byte alpha = 0xFF;
@@ -203,8 +199,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         }
                         else
                         {
-                            LogInvalidLine(endPoint, buffer, bufferPos);
-                            continue;
+                            throw new InvalidLineException(endPoint, FormatLine(buffer[..bufferPos]));
                         }
                     }
                     else
@@ -220,8 +215,7 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                                 !TryParseInt(buffer.Slice(indices[1], indices[2] - indices[1] - 1), out var x) ||
                                 !TryParseInt(buffer.Slice(indices[2], indices[3] - indices[2] - 1), out var y))
                             {
-                                LogInvalidLine(endPoint, buffer, bufferPos);
-                                continue;
+                                throw new InvalidLineException(endPoint, FormatLine(buffer[..bufferPos]));
                             }
 
                             offsetX = x;
@@ -248,11 +242,15 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                         }
                         else
                         {
-                            LogInvalidLine(endPoint, buffer, bufferPos);
-                            continue;
+                            throw new InvalidLineException(endPoint, FormatLine(buffer[..bufferPos]));
                         }
                     }
                 }
+            }
+            catch (InvalidLineException ex)
+            {
+                netstream.Write(Encoding.UTF8.GetBytes($"Invalid Line: {ex.Message}. Go bother patagona if you think that is a mistake."));
+                _logger.LogInformation("Invalid Line from {EndPoint}: {Line}", ex.EndPoint, ex.Message);
             }
             finally
             {
@@ -268,21 +266,21 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             return int.TryParse(span, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out num);
         }
 
-        private void LogInvalidLine(EndPoint endPoint, Span<char> buffer, int bufferPos)
+        private bool IsAllowedChar(char x)
         {
-            _logger.LogInformation("Invalid Line from {EndPoint}: {Line}", endPoint, FormatLine(buffer.Slice(0, bufferPos)));
+            return (x >= 'A' && x <= 'Z') || (x >= 'a' && x <= 'z') || (x >= '0' && x <= '9') || x == ' ' || x == '\r' || x == '\n';
         }
 
         private string FormatLine(Span<char> lineSpan)
         {
             var chars = lineSpan.ToArray();
-            if (chars.Any(x => !char.IsWhiteSpace(x) && char.IsControl(x)))
+            if (!chars.All(x => IsAllowedChar(x)))
             {
-                return $"({string.Join(' ', chars.Select(x => ((byte)x).ToString("X2")))})";
+                return $"'{new string(chars.Select(x => IsAllowedChar(x) ? x : '?').ToArray()).TrimEnd('\n', '\r')}' ({string.Join(' ', chars.Select(x => ((byte)x).ToString("X2")))})";
             }
             else
             {
-                var line = new string(lineSpan).TrimEnd(); // remove newline at end
+                var line = new string(lineSpan).TrimEnd('\n', '\r'); // remove newline at end
                 return $"'{line}'";
             }
         }
