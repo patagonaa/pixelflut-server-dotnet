@@ -38,10 +38,11 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
                     try
                     {
                         HandleInternal(stream, endPoint, pixelBuffer, frameReadySemaphore, cancellationToken);
-                    }
-                    finally
-                    {
                         tcs.SetResult(true);
+                    }
+                    catch(Exception ex)
+                    {
+                        tcs.SetException(ex);
                     }
                 });
             handleThread.Priority = ThreadPriority.BelowNormal;
