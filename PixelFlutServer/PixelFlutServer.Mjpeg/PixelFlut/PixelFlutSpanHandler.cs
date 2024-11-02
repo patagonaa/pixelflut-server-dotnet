@@ -57,9 +57,9 @@ namespace PixelFlutServer.Mjpeg.PixelFlut
             var bytesPerPixel = Const.FrameBytesPerPixel;
             var pixelsBgr = pixelBuffer.Buffer;
 
-            Span<char> buffer = stackalloc char[1000];
+            Span<char> buffer = stackalloc char[100];
             int bufferPos = 0;
-            var stream = new StreamBufferWrapper(netstream, 1_048_576);
+            var stream = new StreamBufferWrapper(netstream, 1024);
             var indicesCount = 0;
             var indices = new int[16];
 
