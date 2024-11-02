@@ -33,5 +33,7 @@
         /// Text to show on the website
         /// </summary>
         public string WebsiteText { get; set; }
+
+        public int ReceiveBufferSize { get; set; } = 8 * 1024 * 1024;
     }
 }
