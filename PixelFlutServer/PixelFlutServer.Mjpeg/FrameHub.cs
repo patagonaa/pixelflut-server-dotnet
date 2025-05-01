@@ -97,7 +97,7 @@ namespace PixelFlutServer.Mjpeg
 
         public class FrameRegistration
         {
-            private readonly SemaphoreSlim _semaphore = new(1, 1);
+            private readonly ManualResetEventSlim _frameEvent = new(false);
             private readonly byte[] _frame;
 
             public FrameRegistration(byte[] frame)
@@ -107,7 +107,10 @@ namespace PixelFlutServer.Mjpeg
 
             public bool WaitForFrame(CancellationToken token, int timeoutMs)
             {
-                return _semaphore.Wait(timeoutMs, token);
+                bool hasFrame = _frameEvent.Wait(timeoutMs, token);
+                if (hasFrame)
+                    _frameEvent.Reset();
+                return hasFrame;
             }
 
             public byte[] GetCurrentFrame()
@@ -117,16 +120,7 @@ namespace PixelFlutServer.Mjpeg
 
             internal void AnnounceFrame()
             {
-                try
-                {
-                    if (_semaphore.CurrentCount == 0)
-                    {
-                        _semaphore.Release();
-                    }
-                }
-                catch (SemaphoreFullException)
-                {
-                }
+                _frameEvent.Set();
             }
         }
     }
