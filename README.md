@@ -19,7 +19,7 @@ If  you don't want to use Docker, you can either run this on Windows using Visua
 
 ### Installation on Ubuntu (e.g. 22.04):
 ```bash
-sudo apt update && sudo apt install dotnet-sdk-6.0
+sudo apt update && sudo apt install dotnet-sdk-8.0
 ```
 Don't forget to turn off the standby timeout in the energy saving options!
 

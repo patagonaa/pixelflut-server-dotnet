@@ -65,10 +65,11 @@ namespace PixelFlutServer.Mjpeg.Ndi
                 }
 
                 sender.Send(vf);
-                if (sender.Connections == 0)
-                {
-                    Thread.Sleep(1000);
-                }
+                // if (sender.Connections == 0) // getting the number of connections is apparently unreliable so we don't do that anymore.
+                // {
+                //     Thread.Sleep(1000);
+                //     Console.Write("-");
+                // }
             }
         }
     }

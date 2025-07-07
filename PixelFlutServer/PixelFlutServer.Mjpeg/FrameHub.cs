@@ -70,14 +70,14 @@ namespace PixelFlutServer.Mjpeg
                     }
                 });
 
-                var textOptions = new TextOptions(_font.Value)
+                var textOptions = new RichTextOptions(_font.Value)
                 {
                     TextAlignment = TextAlignment.Start,
                     HorizontalAlignment = HorizontalAlignment.Left,
                     VerticalAlignment = VerticalAlignment.Bottom,
                     Origin = new PointF(0, _config.Height)
                 };
-                var textMeasured = TextMeasurer.Measure(_config.AdditionalText, textOptions);
+                var textMeasured = TextMeasurer.MeasureSize(_config.AdditionalText, textOptions);
                 _image.Mutate(x => x
                     .Fill(Color.Black, new RectangleF(0, _config.Height - textMeasured.Height, textMeasured.Width, textMeasured.Height))
                     .DrawText(textOptions, _config.AdditionalText, Color.White));
