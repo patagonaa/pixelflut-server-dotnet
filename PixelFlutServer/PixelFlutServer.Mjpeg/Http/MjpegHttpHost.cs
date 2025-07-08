@@ -120,6 +120,9 @@ namespace PixelFlutServer.Mjpeg.Http
                     }
                 }
             }
+            catch (OperationCanceledException)
+            {
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occured in GetFrameWorker");

@@ -25,10 +25,18 @@ Don't forget to turn off the standby timeout in the energy saving options!
 
 #### NDI (hacky):
 ```bash
+# install NDI SDK
 wget https://downloads.ndi.tv/SDK/NDI_SDK_Linux/Install_NDI_SDK_v6_Linux.tar.gz
 tar -xzf Install_NDI_SDK_v6_Linux.tar.gz
 ./Install_NDI_SDK_v6_Linux.sh
-cp 'NDI SDK for Linux/lib/x86_64-linux-gnu/libndi.so.6.0.0' '/lib/Processing.NDI.Lib.x64.dll'
+
+# then, copy the unpacked libndi to the release folder
+cp 'NDI SDK for Linux/lib/x86_64-linux-gnu/libndi.so.6.0.0' './PixelFlutServer/PixelFlutServer.Mjpeg/bin/Release/net8.0/NDILib.so'
+
+# alternatively, if you've installed the NDI SDK (e.g. via the ndi-sdk package on AUR)
+# you can just link it from the install directory:
+ln -s '/usr/lib/libndi.so' './PixelFlutServer/PixelFlutServer.Mjpeg/bin/Release/net8.0/NDILib.so'
+
 ```
 ### Startup
 #### Options

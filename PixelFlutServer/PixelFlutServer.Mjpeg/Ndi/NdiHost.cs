@@ -1,10 +1,9 @@
-﻿using CommunityToolkit.HighPerformance;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NewTek.NDI;
 using System.Threading;
 using System.Threading.Tasks;
-using VL.IO.NDI;
-using VL.Lib.Basics.Video;
 
 namespace PixelFlutServer.Mjpeg.Ndi
 {
@@ -13,11 +12,13 @@ namespace PixelFlutServer.Mjpeg.Ndi
         private readonly PixelFlutServerConfig _config;
         private readonly CancellationTokenSource _cts = new();
         private readonly FrameHub _frameHub;
+        private readonly ILogger<NdiHost> _logger;
 
-        public NdiHost(IOptions<PixelFlutServerConfig> config, FrameHub frameHub)
+        public NdiHost(IOptions<PixelFlutServerConfig> config, FrameHub frameHub, ILogger<NdiHost> logger)
         {
             _config = config.Value;
             _frameHub = frameHub;
+            _logger = logger;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -36,40 +37,44 @@ namespace PixelFlutServer.Mjpeg.Ndi
             return Task.CompletedTask;
         }
 
-        private void Worker()
+        private unsafe void Worker()
         {
             using var sender = new Sender("Pixelflut!");
 
             var width = _config.Width;
             var height = _config.Height;
-            var buffer = new BgrxPixel[height, width];
-            var data = new Memory2D<BgrxPixel>(buffer);
-            var vf = new VideoFrame<BgrxPixel>(data, FrameRate: (_config.MaxFps, 1));
-
-            var registration = _frameHub.Register();
-
-            while (!_cts.IsCancellationRequested)
+            var pixels = width * height;
+            var buffer = new byte[pixels * 4]; // bgra
+            fixed (byte* bufptr = buffer)
             {
-                registration.WaitForFrame(_cts.Token, 1000);
-                var frame = registration.GetCurrentFrame();
+                var vf = new VideoFrame((nint)bufptr, width, height, width * 4, NewTek.NDIlib.FourCC_type_e.FourCC_type_BGRX, (float)width / height, _config.MaxFps, 1, NewTek.NDIlib.frame_format_type_e.frame_format_type_progressive);
 
-                for (int y = 0; y < height; y++)
+                var registration = _frameHub.Register();
+
+                while (!_cts.IsCancellationRequested)
                 {
-                    for (int x = 0; x < width; x++)
+                    registration.WaitForFrame(_cts.Token, 1000);
+                    var frame = registration.GetCurrentFrame();
+
+                    int i = 0, j = 0;
+                    for (int y = 0; y < height; y++)
                     {
-                        var idx = (y * width + x) * Const.FrameBytesPerPixel;
-                        buffer[y, x].B = frame[idx];
-                        buffer[y, x].G = frame[idx + 1];
-                        buffer[y, x].R = frame[idx + 2];
+                        for (int x = 0; x < width; x++)
+                        {
+                            buffer[i++] = frame[j++];
+                            buffer[i++] = frame[j++];
+                            buffer[i++] = frame[j++];
+                            i++;
+                        }
+                    }
+
+                    sender.Send(vf);
+                    if (sender.Connections == 0)
+                    {
+                        _logger.LogInformation("No NDI connections, waiting...");
+                        Thread.Sleep(1000);
                     }
                 }
-
-                sender.Send(vf);
-                // if (sender.Connections == 0) // getting the number of connections is apparently unreliable so we don't do that anymore.
-                // {
-                //     Thread.Sleep(1000);
-                //     Console.Write("-");
-                // }
             }
         }
     }
